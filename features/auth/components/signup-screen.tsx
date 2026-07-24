@@ -1,4 +1,4 @@
-import { useSignUp } from "@clerk/expo";
+import { useSignUp } from "@clerk/expo/legacy";
 import { useState } from "react";
 import {
   Alert,
@@ -62,8 +62,7 @@ const getPasswordStrength = (pass: string): StrengthDetails => {
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { signUp } = useSignUp();
-  const isLoaded = signUp !== null;
+  const { signUp, setActive, isLoaded } = useSignUp();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,7 +72,7 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSignUp = async () => {
-    if (!isLoaded || !signUp) return;
+    if (!isLoaded) return;
 
     if (!email || !password) {
       Alert.alert("Missing info", "Please enter both email and password.");
@@ -83,41 +82,28 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       // 1. Create signup attempt
-      const result = await signUp.create({
+      await signUp.create({
         emailAddress: email,
         password,
       });
 
-      if (result.error) {
-        setLoading(false);
-        const errorMessage = result.error.longMessage || result.error.message || "An error occurred during signup.";
-        console.error("Signup failed:", errorMessage, result.error);
-        Alert.alert("Signup failed", errorMessage);
-        return;
-      }
-
-      // 2. Send email verification code
-      const sendCodeResult = await signUp.verifications.sendEmailCode();
-      if (sendCodeResult.error) {
-        setLoading(false);
-        const errorMessage = sendCodeResult.error.longMessage || sendCodeResult.error.message || "Failed to send verification code.";
-        console.error("Send verification failed:", errorMessage, sendCodeResult.error);
-        Alert.alert("Verification failed", errorMessage);
-        return;
-      }
+      // 2. Prepare email address verification (sends code)
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
+      });
 
       setLoading(false);
       setPendingVerification(true);
     } catch (err: any) {
       setLoading(false);
       const errorMessage = err.errors?.[0]?.longMessage || err.message || "An error occurred during signup.";
-      console.error("Signup caught exception:", errorMessage, err);
+      console.error("Signup failed:", errorMessage, err);
       Alert.alert("Signup failed", errorMessage);
     }
   };
 
   const handleVerify = async () => {
-    if (!isLoaded || !signUp) return;
+    if (!isLoaded) return;
 
     if (!code) {
       Alert.alert("Missing code", "Please enter the verification code.");
@@ -126,39 +112,23 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      // 3. Verify the email code
-      const verifyResult = await signUp.verifications.verifyEmailCode({
+      // 3. Attempt email address verification (verifies code)
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
         code,
       });
 
-      if (verifyResult.error) {
-        setLoading(false);
-        const errorMessage = verifyResult.error.longMessage || verifyResult.error.message || "Incorrect verification code.";
-        console.error("Verification failed:", errorMessage, verifyResult.error);
-        Alert.alert("Verification failed", errorMessage);
-        return;
-      }
-
-      // 4. Finalize the signup
-      if (signUp.status === "complete") {
-        const finalizeResult = await signUp.finalize();
-        if (finalizeResult.error) {
-          setLoading(false);
-          const errorMessage = finalizeResult.error.longMessage || finalizeResult.error.message || "Failed to finalize account creation.";
-          console.error("Finalize failed:", errorMessage, finalizeResult.error);
-          Alert.alert("Signup failed", errorMessage);
-          return;
-        }
-        // Redirect will happen automatically in InitialLayout
+      // 4. Finalize the signup (setActive)
+      if (completeSignUp.status === "complete") {
+        await setActive({ session: completeSignUp.createdSessionId });
       } else {
-        console.warn("Uncompleted sign up attempt:", signUp);
+        console.warn("Uncompleted sign up attempt:", completeSignUp);
         Alert.alert("Action required", "Please complete outstanding sign-up requirements.");
         setLoading(false);
       }
     } catch (err: any) {
       setLoading(false);
       const errorMessage = err.errors?.[0]?.longMessage || err.message || "An error occurred during verification.";
-      console.error("Verification caught exception:", errorMessage, err);
+      console.error("Verification failed:", errorMessage, err);
       Alert.alert("Verification failed", errorMessage);
     }
   };
