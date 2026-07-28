@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { BankProvider } from "@/context/bank-context";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -36,13 +37,17 @@ function InitialLayout() {
       // Redirect unauthenticated users back to login
       router.replace("/login");
     }
-  }, [isSignedIn, isLoaded, segments]);
+  }, [isSignedIn, isLoaded, segments, router]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="topup" options={{ presentation: "modal" }} />
+      <Stack.Screen name="receive" options={{ presentation: "modal" }} />
+      <Stack.Screen name="send" options={{ presentation: "modal" }} />
+      <Stack.Screen name="payments" options={{ presentation: "modal" }} />
       <Stack.Screen
         name="modal"
         options={{ presentation: "modal", title: "Modal" }}
@@ -56,10 +61,13 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <InitialLayout />
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <BankProvider>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <InitialLayout />
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </BankProvider>
     </ClerkProvider>
   );
 }
+

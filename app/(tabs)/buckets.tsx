@@ -1,0 +1,832 @@
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  TextInput,
+  Platform,
+} from 'react-native';
+import { useBank } from '@/context/bank-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+export default function BucketsScreen() {
+  const insets = useSafeAreaInsets();
+  
+  const {
+    buckets,
+    addBucket,
+    deleteBucket,
+    addToGoal,
+  } = useBank();
+
+  // Local state
+  const [activeTab, setActiveTab] = useState<'bill' | 'saving' | 'goal'>('bill');
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [detailModalId, setDetailModalId] = useState<number | null>(null);
+
+  // New bucket form state
+  const [newName, setNewName] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newCategory, setNewCategory] = useState<'bill' | 'saving' | 'goal'>('bill');
+  const [newDueDate, setNewDueDate] = useState('');
+  const [newStarting, setNewStarting] = useState('');
+
+  // Format currency helper
+  const formatMoney = (n: number) => {
+    return '$' + Number(n).toFixed(2);
+  };
+
+  const filteredBuckets = buckets.filter(b => b.category === activeTab);
+  const selectedDetailBucket = buckets.find(b => b.id === detailModalId);
+
+  // Calculate totals
+  const billCountLabel = filteredBuckets.length === 1 ? '1 bill' : `${filteredBuckets.length} bills`;
+  const savingCountLabel = filteredBuckets.length === 1 ? '1 saving bucket' : `${filteredBuckets.length} saving buckets`;
+  const goalCountLabel = filteredBuckets.length === 1 ? '1 locked goal' : `${filteredBuckets.length} locked goals`;
+
+  // Goal metrics
+  const rawGoals = buckets.filter(b => b.category === 'goal');
+  const totalGoalTarget = rawGoals.reduce((sum, b) => sum + (b.target || 0), 0);
+  const totalGoalCurrent = rawGoals.reduce((sum, b) => sum + (b.current || 0), 0);
+  const goalOverallPct = totalGoalTarget > 0 ? Math.min(100, Math.round((totalGoalCurrent / totalGoalTarget) * 100)) : 0;
+
+  const handleCreateBucket = () => {
+    if (!newName.trim() || !newAmount) return;
+    const amt = parseFloat(newAmount) || 0;
+    
+    if (newCategory === 'goal') {
+      const target = amt;
+      const starting = parseFloat(newStarting) || 0;
+      addBucket(newName, 'goal', 0, undefined, target, starting);
+    } else {
+      addBucket(newName, newCategory, amt, newDueDate.trim() || undefined);
+    }
+
+    // Reset and close
+    setNewName('');
+    setNewAmount('');
+    setNewCategory('bill');
+    setNewDueDate('');
+    setNewStarting('');
+    setAddModalOpen(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingTop: Math.max(insets.top, 20), paddingBottom: 100 }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>Buckets</Text>
+
+        {/* TAB SELECTOR */}
+        <View style={styles.tabSelector}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'bill' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('bill')}
+          >
+            <Text style={[styles.tabText, activeTab === 'bill' && styles.tabTextActive]}>Bills</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'saving' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('saving')}
+          >
+            <Text style={[styles.tabText, activeTab === 'saving' && styles.tabTextActive]}>Saving</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'goal' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('goal')}
+          >
+            <Text style={[styles.tabText, activeTab === 'goal' && styles.tabTextActive]}>Goals</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* TAB ACTION HEADER */}
+        <View style={styles.actionHeaderRow}>
+          <View style={styles.countPill}>
+            <View style={styles.countPillDot} />
+            <Text style={styles.countPillText}>
+              {activeTab === 'bill' ? billCountLabel : activeTab === 'saving' ? savingCountLabel : goalCountLabel}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.addButton} onPress={() => setAddModalOpen(true)}>
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* DETAILS LIST */}
+        {activeTab === 'goal' && rawGoals.length > 0 && (
+          <View style={styles.overallGoalCard}>
+            <Text style={styles.overallGoalTitle}>Total locked</Text>
+            <Text style={styles.overallGoalValue}>{formatMoney(totalGoalCurrent)}</Text>
+            
+            {/* GOAL DONUT GRAPH REPRESENTATION */}
+            <View style={styles.donutContainer}>
+              <View style={styles.donutRing}>
+                <View style={styles.donutCenter}>
+                  <Text style={styles.donutText}>{goalOverallPct}%</Text>
+                  <Text style={styles.donutSubText}>completed</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.listContainer}>
+          {filteredBuckets.length > 0 ? (
+            filteredBuckets.map((bucket) => {
+              const letter = bucket.name.charAt(0).toUpperCase();
+              const progressPct = bucket.category === 'goal' && bucket.target
+                ? Math.min(100, Math.round(((bucket.current || 0) / bucket.target) * 100))
+                : 0;
+
+              return (
+                <TouchableOpacity
+                  key={bucket.id}
+                  style={styles.bucketCard}
+                  onPress={() => setDetailModalId(bucket.id)}
+                >
+                  <View style={styles.bucketHeader}>
+                    {bucket.category === 'goal' ? (
+                      <View style={styles.progressCircle}>
+                        <Text style={styles.progressCircleText}>{progressPct}%</Text>
+                      </View>
+                    ) : (
+                      <View 
+                        style={[
+                          styles.avatarCircle, 
+                          { backgroundColor: bucket.category === 'bill' ? '#C5F347' : '#ECEEE4' }
+                        ]}
+                      >
+                        <Text style={styles.avatarCircleText}>{letter}</Text>
+                      </View>
+                    )}
+                    <View style={styles.bucketInfo}>
+                      <Text style={styles.bucketName}>{bucket.name}</Text>
+                      {bucket.category === 'goal' ? (
+                        <Text style={styles.bucketAmount}>
+                          {formatMoney(bucket.current || 0)} / {formatMoney(bucket.target || 0)}
+                        </Text>
+                      ) : (
+                        <Text style={styles.bucketAmount}>
+                          {formatMoney(bucket.amount || 0)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.bucketNote}>{bucket.note}</Text>
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyText}>
+              No {activeTab}s setup yet. Tap + to add one.
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* ADD BUCKET MODAL */}
+      <Modal
+        visible={addModalOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAddModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>New bucket</Text>
+
+            {/* FIELD: NAME */}
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Internet"
+                placeholderTextColor="#9A9A90"
+                value={newName}
+                onChangeText={setNewName}
+              />
+            </View>
+
+            {/* FIELD: CATEGORY SEGMENT */}
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>Type</Text>
+              <View style={styles.segmentContainer}>
+                {(['bill', 'saving', 'goal'] as const).map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.segmentButton,
+                      newCategory === cat && styles.segmentButtonActive
+                    ]}
+                    onPress={() => setNewCategory(cat)}
+                  >
+                    <Text 
+                      style={[
+                        styles.segmentText,
+                        newCategory === cat && styles.segmentTextActive
+                      ]}
+                    >
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* DYNAMIC FORM FIELDS */}
+            {newCategory === 'bill' && (
+              <>
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Amount</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="0"
+                    placeholderTextColor="#9A9A90"
+                    keyboardType="numeric"
+                    value={newAmount}
+                    onChangeText={setNewAmount}
+                  />
+                </View>
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Due date</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. Aug 14"
+                    placeholderTextColor="#9A9A90"
+                    value={newDueDate}
+                    onChangeText={setNewDueDate}
+                  />
+                </View>
+              </>
+            )}
+
+            {newCategory === 'saving' && (
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>Amount to hold</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="0"
+                  placeholderTextColor="#9A9A90"
+                  keyboardType="numeric"
+                  value={newAmount}
+                  onChangeText={setNewAmount}
+                />
+              </View>
+            )}
+
+            {newCategory === 'goal' && (
+              <>
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Target amount</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="150"
+                    placeholderTextColor="#9A9A90"
+                    keyboardType="numeric"
+                    value={newAmount}
+                    onChangeText={setNewAmount}
+                  />
+                </View>
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Already saved</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="0"
+                    placeholderTextColor="#9A9A90"
+                    keyboardType="numeric"
+                    value={newStarting}
+                    onChangeText={setNewStarting}
+                  />
+                </View>
+              </>
+            )}
+
+            {/* BUTTONS BAR */}
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setAddModalOpen(false)}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleCreateBucket}
+              >
+                <Text style={styles.modalButtonConfirmText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DETAIL BUCKET MODAL */}
+      <Modal
+        visible={detailModalId !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDetailModalId(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {selectedDetailBucket && (
+              <>
+                <Text style={styles.detailTitle}>{selectedDetailBucket.name}</Text>
+                <Text style={styles.detailCategory}>
+                  Category: {selectedDetailBucket.category.toUpperCase()}
+                </Text>
+                
+                <View style={styles.detailContentContainer}>
+                  <Text style={styles.detailAmountLabel}>Target / Amount</Text>
+                  <Text style={styles.detailAmountValue}>
+                    {selectedDetailBucket.category === 'goal'
+                      ? `${formatMoney(selectedDetailBucket.current || 0)} / ${formatMoney(selectedDetailBucket.target || 0)}`
+                      : formatMoney(selectedDetailBucket.amount || 0)}
+                  </Text>
+                  
+                  <Text style={styles.detailNoteLabel}>Notes</Text>
+                  <Text style={styles.detailNoteValue}>{selectedDetailBucket.note}</Text>
+                </View>
+
+                {/* QUICK ADD TO GOAL IF GOAL TAB */}
+                {selectedDetailBucket.category === 'goal' && (
+                  <View style={styles.quickAddGoalRow}>
+                    <Text style={styles.quickAddTitle}>Quick lock money:</Text>
+                    <View style={styles.quickAddChips}>
+                      {[10, 25, 50].map((amt) => (
+                        <TouchableOpacity
+                          key={amt}
+                          style={styles.quickAddChip}
+                          onPress={() => addToGoal(selectedDetailBucket.id, amt)}
+                        >
+                          <Text style={styles.quickAddChipText}>+{amt}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* DELETE / CLOSE BUTTONS */}
+                <View style={styles.detailActions}>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => {
+                      deleteBucket(selectedDetailBucket.id);
+                      setDetailModalId(null);
+                    }}
+                  >
+                    <Text style={styles.deleteButtonText}>Delete bucket</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.closeDetailButton}
+                    onPress={() => setDetailModalId(null)}
+                  >
+                    <Text style={styles.closeDetailButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F1EEE4', // Warm Beige
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#10201B',
+    marginBottom: 18,
+  },
+  tabSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#10201B', // Dark Pine Green
+    borderRadius: 25,
+    padding: 4,
+    marginBottom: 18,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 21,
+  },
+  tabButtonActive: {
+    backgroundColor: '#C5F347', // Lime Green
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  tabTextActive: {
+    color: '#10201B',
+  },
+  actionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  countPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  countPillDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10201B',
+  },
+  countPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10201B',
+  },
+  addButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#10201B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  overallGoalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 18,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  overallGoalTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6F6F68',
+    marginBottom: 4,
+  },
+  overallGoalValue: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#10201B',
+  },
+  donutContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+  },
+  donutRing: {
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: '#ECEEE4',
+    borderWidth: 20,
+    borderColor: '#C5F347', // Ring represent overall goals target filled progress
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutCenter: {
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#10201B',
+  },
+  donutSubText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7A9A3F',
+    marginTop: 2,
+  },
+  listContainer: {
+    gap: 10,
+  },
+  bucketCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  bucketHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarCircleText: {
+    fontWeight: '800',
+    fontSize: 16,
+    color: '#10201B',
+  },
+  progressCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ECEEE4',
+    borderWidth: 6,
+    borderColor: '#10201B', // Dark outline progress
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressCircleText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#10201B',
+  },
+  bucketInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bucketName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#10201B',
+  },
+  bucketAmount: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#10201B',
+  },
+  bucketNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#9A9A90',
+    fontWeight: '500',
+    lineHeight: 16,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#9A9A90',
+    fontWeight: '500',
+    paddingVertical: 40,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(20, 20, 15, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 26,
+    padding: 22,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#10201B',
+    marginBottom: 16,
+  },
+  modalField: {
+    marginBottom: 12,
+  },
+  modalLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6F6F68',
+    marginBottom: 6,
+  },
+  modalInput: {
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#ECEEE4',
+    fontSize: 14,
+    color: '#10201B',
+  },
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#ECEEE4',
+    borderRadius: 20,
+    padding: 4,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  segmentButtonActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  segmentText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6F6F68',
+  },
+  segmentTextActive: {
+    color: '#10201B',
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#ECEEE4',
+  },
+  modalButtonCancelText: {
+    color: '#10201B',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  modalButtonConfirm: {
+    backgroundColor: '#10201B',
+  },
+  modalButtonConfirmText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  detailTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#10201B',
+    marginBottom: 4,
+  },
+  detailCategory: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7A9A3F',
+    marginBottom: 16,
+  },
+  detailContentContainer: {
+    marginBottom: 18,
+  },
+  detailAmountLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6F6F68',
+    marginBottom: 4,
+  },
+  detailAmountValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#10201B',
+    marginBottom: 14,
+  },
+  detailNoteLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6F6F68',
+    marginBottom: 4,
+  },
+  detailNoteValue: {
+    fontSize: 14,
+    color: '#10201B',
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  quickAddGoalRow: {
+    backgroundColor: '#ECEEE4',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 18,
+  },
+  quickAddTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10201B',
+    marginBottom: 8,
+  },
+  quickAddChips: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickAddChip: {
+    flex: 1,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DCDED2',
+  },
+  quickAddChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10201B',
+  },
+  detailActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  deleteButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#E1483F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    color: '#E1483F',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  closeDetailButton: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#10201B',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeDetailButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+});

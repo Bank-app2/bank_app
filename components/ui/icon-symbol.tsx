@@ -18,7 +18,16 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'message.fill': 'chat',
+  'folder.fill': 'folder',
+  'gearshape.fill': 'settings',
+  'eye.fill': 'visibility',
+  'eye.slash.fill': 'visibility-off',
+  'doc.on.doc.fill': 'content-copy',
+  'creditcard.fill': 'credit-card',
 } as IconMapping;
+
+
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
