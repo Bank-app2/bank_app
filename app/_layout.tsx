@@ -26,16 +26,20 @@ function InitialLayout() {
   useEffect(() => {
     if (!isLoaded) return;
 
-    // segments[0] is the top-level folder name (e.g. "(tabs)", "login", "signup", or undefined)
-    const inTabsGroup = segments[0] === "(tabs)";
-    const isAuthPath = segments[0] === "login" || segments[0] === "signup";
+    const segmentArray = segments as string[];
+    const isRoot = segmentArray.length === 0 || !segmentArray[0];
+    const isAuthPath = segmentArray[0] === "login" || segmentArray[0] === "signup";
 
-    if (isSignedIn && !inTabsGroup) {
-      // Redirect authenticated users from login / index / signup to home tabs
-      router.replace("/(tabs)");
-    } else if (!isSignedIn && !isAuthPath) {
-      // Redirect unauthenticated users back to login
-      router.replace("/login");
+    if (isSignedIn) {
+      if (isAuthPath || isRoot) {
+        // Redirect signed-in users away from login/signup/root to tabs
+        router.replace("/(tabs)");
+      }
+    } else {
+      if (!isAuthPath) {
+        // Redirect unauthenticated users back to login
+        router.replace("/login");
+      }
     }
   }, [isSignedIn, isLoaded, segments, router]);
 

@@ -1,9 +1,28 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+
+function renderTabIcon(name: any, color: string, focused: boolean) {
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center', height: 40, width: 40 }}>
+      <IconSymbol size={24} name={name} color={color} />
+      {focused && (
+        <View 
+          style={{
+            width: 4,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: '#C5F347', // Brand Lime Green active dot
+            marginTop: 6,
+          }}
+        />
+      )}
+    </View>
+  );
+}
 
 export default function TabLayout() {
   return (
@@ -12,6 +31,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#10201B',
         tabBarInactiveTintColor: '#B9BAAE',
         headerShown: false,
+        tabBarShowLabel: false, // Hide text labels below icons
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
@@ -36,28 +56,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
+          tabBarIcon: ({ color, focused }) => renderTabIcon('house', color, focused),
         }}
       />
       <Tabs.Screen
         name="zara"
         options={{
           title: 'Zara',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="message.fill" color={color} />,
+          tabBarIcon: ({ color, focused }) => renderTabIcon('mic', color, focused),
         }}
       />
       <Tabs.Screen
         name="buckets"
         options={{
           title: 'Buckets',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="folder.fill" color={color} />,
+          tabBarIcon: ({ color, focused }) => renderTabIcon('tray', color, focused),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="gearshape.fill" color={color} />,
+          tabBarIcon: ({ color, focused }) => renderTabIcon('gearshape', color, focused),
         }}
       />
     </Tabs>

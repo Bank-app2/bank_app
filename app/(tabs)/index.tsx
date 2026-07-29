@@ -120,28 +120,28 @@ export default function HomeScreen() {
       <View style={styles.actionsBar}>
         <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/topup')}>
           <View style={styles.actionIconContainer}>
-            <IconSymbol name="chevron.right" size={20} color="#10201B" style={styles.topUpIcon} />
+            <IconSymbol name="arrow.up.circle" size={24} color="#10201B" />
           </View>
           <Text style={styles.actionLabel}>Top up</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/receive')}>
           <View style={styles.actionIconContainer}>
-            <IconSymbol name="chevron.right" size={20} color="#10201B" style={styles.receiveIcon} />
+            <IconSymbol name="arrow.down.circle" size={24} color="#10201B" />
           </View>
           <Text style={styles.actionLabel}>Receive</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/send')}>
           <View style={styles.actionIconContainer}>
-            <IconSymbol name="paperplane.fill" size={18} color="#10201B" />
+            <IconSymbol name="paperplane" size={22} color="#10201B" />
           </View>
           <Text style={styles.actionLabel}>Send</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/payments')}>
           <View style={styles.actionIconContainer}>
-            <IconSymbol name="creditcard.fill" size={18} color="#10201B" />
+            <IconSymbol name="creditcard" size={22} color="#10201B" />
           </View>
           <Text style={styles.actionLabel}>Payments</Text>
         </TouchableOpacity>

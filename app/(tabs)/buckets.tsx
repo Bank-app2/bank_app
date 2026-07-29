@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useBank } from '@/context/bank-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export default function BucketsScreen() {
   const insets = useSafeAreaInsets();
@@ -118,7 +119,13 @@ export default function BucketsScreen() {
               {activeTab === 'bill' ? billCountLabel : activeTab === 'saving' ? savingCountLabel : goalCountLabel}
             </Text>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => setAddModalOpen(true)}>
+          <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={() => {
+              setNewCategory(activeTab);
+              setAddModalOpen(true);
+            }}
+          >
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
@@ -188,9 +195,21 @@ export default function BucketsScreen() {
               );
             })
           ) : (
-            <Text style={styles.emptyText}>
-              No {activeTab}s setup yet. Tap + to add one.
-            </Text>
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <IconSymbol 
+                  name={activeTab === 'bill' ? 'doc.text' : activeTab === 'saving' ? 'archivebox' : 'lock'} 
+                  size={48} 
+                  color="#10201B4D"
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                No {activeTab === 'bill' ? 'bills' : activeTab === 'saving' ? 'savings' : 'locked goals'} yet
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Tap the + button above to create a new {activeTab === 'bill' ? 'bill schedule' : activeTab === 'saving' ? 'saving envelope' : 'savings goal'}.
+              </Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -199,12 +218,14 @@ export default function BucketsScreen() {
       <Modal
         visible={addModalOpen}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setAddModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>New bucket</Text>
+            <Text style={styles.modalTitle}>
+              New {newCategory === 'bill' ? 'bill' : newCategory === 'saving' ? 'saving' : 'goal'}
+            </Text>
 
             {/* FIELD: NAME */}
             <View style={styles.modalField}>
@@ -216,32 +237,6 @@ export default function BucketsScreen() {
                 value={newName}
                 onChangeText={setNewName}
               />
-            </View>
-
-            {/* FIELD: CATEGORY SEGMENT */}
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>Type</Text>
-              <View style={styles.segmentContainer}>
-                {(['bill', 'saving', 'goal'] as const).map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.segmentButton,
-                      newCategory === cat && styles.segmentButtonActive
-                    ]}
-                    onPress={() => setNewCategory(cat)}
-                  >
-                    <Text 
-                      style={[
-                        styles.segmentText,
-                        newCategory === cat && styles.segmentTextActive
-                      ]}
-                    >
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
 
             {/* DYNAMIC FORM FIELDS */}
@@ -623,11 +618,34 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 16,
   },
-  emptyText: {
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 24,
+  },
+  emptyIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#ECEEE4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10201B',
     textAlign: 'center',
-    color: '#9A9A90',
-    fontWeight: '500',
-    paddingVertical: 40,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#10201B99',
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 260,
   },
   modalOverlay: {
     flex: 1,

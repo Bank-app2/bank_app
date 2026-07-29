@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@clerk/expo';
+import { CustomAlert } from '@/components/custom-alert';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Bucket {
   id: number;
@@ -51,7 +54,7 @@ interface BankContextType {
   addBucket: (name: string, category: 'bill' | 'saving' | 'goal', amount: number, date?: string, target?: number, starting?: number) => void;
   deleteBucket: (id: number) => void;
   topUp: (amount: number, source: 'bank' | 'card') => void;
-  sendMoney: (recipient: string, amount: number, note: string) => { success: boolean; error?: string };
+  sendMoney: (recipient: string, amount: number, note: string) => Promise<{ success: boolean; error?: string }> | { success: boolean; error?: string };
   addPaymentCard: () => void;
   sendChatMessage: (text: string) => void;
   addToGoal: (goalId: number, amount: number) => void;
@@ -68,38 +71,35 @@ const KNOWN = [
   { key: 'phone', name: 'Phone', cat: 'goal' as const },
 ];
 
+
 function formatMoney(n: number) {
   return '$' + Number(n).toFixed(2);
 }
 
 export function BankProvider({ children }: { children: ReactNode }) {
-  const [balance, setBalance] = useState(105);
-  const [payingOut, setPayingOut] = useState(275);
-  const [saved, setSaved] = useState(120);
+  const { getToken, isSignedIn, isLoaded } = useAuth();
+
+  // Local state mirrored/synced with backend
+  const [balance, setBalance] = useState(0);
+  const [payingOut, setPayingOut] = useState(0);
+  const [saved, setSaved] = useState(0);
+  const [buckets, setBuckets] = useState<Bucket[]>([]);
+  const [activity, setActivity] = useState<Transaction[]>([]);
+  
+  // Account state ids
+  const [checkingAccountId, setCheckingAccountId] = useState<number | null>(null);
+  const [savingsAccountId, setSavingsAccountId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState<{ title: string; message: string } | null>(null);
+
+  // Layout preferences
   const [balanceHidden, setBalanceHidden] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [faceIdOn, setFaceIdOn] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  
-  const [buckets, setBuckets] = useState<Bucket[]>([
-    { id: 1, name: 'Electricity', category: 'bill', amount: 50, note: "Set aside and scheduled to pay on Aug 14. The money is reserved, not spendable, but hasn't been sent yet." },
-    { id: 2, name: 'Water', category: 'bill', amount: 25, note: "Set aside and scheduled to pay on Aug 18. The money is reserved, not spendable, but hasn't been sent yet." },
-    { id: 3, name: 'Rent', category: 'bill', amount: 200, note: 'Paid on Aug 1 — the money has already been sent.' },
-    { id: 4, name: 'Groceries', category: 'saving', amount: 50, note: 'Held for you, spendable anytime.' },
-    { id: 5, name: 'Taxes', category: 'saving', amount: 30, note: 'Held for you, spendable anytime.' },
-    { id: 6, name: 'Phone', category: 'goal', current: 40, target: 150, note: "Locked until the goal is reached — you'll get a notification the moment it unlocks." },
-  ]);
-
-  const [activity, setActivity] = useState<Transaction[]>([
-    { id: 1, label: 'Electricity', sub: 'scheduled for the 14th', amount: -50, category: 'bill' },
-    { id: 2, label: 'Phone goal', sub: '$80 to go', amount: -40, category: 'goal' },
-    { id: 3, label: 'Paycheck received', sub: '', amount: 500, category: 'income' },
-  ]);
 
   const [chat, setChat] = useState<ChatMessage[]>([
     { id: 0, from: 'zara', text: "Hey, I'm Zara. What can I do for you today?", isZara: true, isUser: false },
-    { id: 1, from: 'user', text: "$50 for electricity", isZara: false, isUser: true },
-    { id: 2, from: 'zara', text: "Done — $50.00 for Electricity. I'll pay that automatically when it's due.", isZara: true, isUser: false },
   ]);
 
   const [paymentCards, setPaymentCards] = useState<PaymentCard[]>([
@@ -111,93 +111,344 @@ export function BankProvider({ children }: { children: ReactNode }) {
   const toggleNotifications = () => setNotificationsOn(!notificationsOn);
   const toggleFaceId = () => setFaceIdOn(!faceIdOn);
 
-  const addBucket = (name: string, category: 'bill' | 'saving' | 'goal', amount: number, date?: string, target?: number, starting?: number) => {
-    const newId = Date.now();
+  // Authenticated API request wrapper helper
+  const apiCall = useCallback(async (path: string, options: RequestInit = {}) => {
+    const token = await getToken();
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...options.headers,
+    };
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.error || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  }, [getToken]);
+
+  // Unified data sync loop
+  const loadingRef = useRef(false);
+  const loadData = useCallback(async () => {
+    if (!isSignedIn || loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      // 1. Fetch user accounts
+      const accountsRes = await apiCall('/api/accounts');
+      const accountsList = accountsRes.accounts || [];
+
+      // 2. Auto-provision accounts if they don't exist yet in the backend
+      let checking = accountsList.find((a: any) => a.accountType === 'checking');
+      let savings = accountsList.find((a: any) => a.accountType === 'savings');
+
+      if (!checking) {
+        const checkRes = await apiCall('/api/accounts', {
+          method: 'POST',
+          body: JSON.stringify({ accountType: 'checking' }),
+        });
+        checking = checkRes.account;
+      }
+      if (!savings) {
+        const saveRes = await apiCall('/api/accounts', {
+          method: 'POST',
+          body: JSON.stringify({ accountType: 'savings' }),
+        });
+        savings = saveRes.account;
+      }
+
+      setCheckingAccountId(checking.id);
+      setSavingsAccountId(savings.id);
+
+      // 3. Fetch summary balances
+      const summaryRes = await apiCall('/api/accounts/summary');
+      const summary = summaryRes.summary;
+      if (summary) {
+        setBalance(parseFloat(summary.availableBalance) || 0);
+        setPayingOut(parseFloat(summary.payingOut) || 0);
+        setSaved(parseFloat(summary.lockedBalance) || 0);
+      }
+
+      // 4. Fetch recent transactions for checking account
+      const txRes = await apiCall(`/api/transactions?accountId=${checking.id}&limit=50`);
+      const rawTxList = txRes.transactions || [];
+      const formattedTx: Transaction[] = rawTxList.map((t: any) => {
+        let category = 'bill';
+        if (t.type === 'deposit') {
+          category = 'income';
+        } else if (t.type === 'transfer') {
+          category = t.description?.toLowerCase().includes('goal') ? 'goal' : 'saving';
+        }
+        
+        return {
+          id: t.id,
+          label: t.description || (t.type === 'deposit' ? 'Top up' : 'Transfer'),
+          sub: t.status === 'pending' ? 'pending' : '',
+          amount: t.type === 'deposit' ? parseFloat(t.amount) : -parseFloat(t.amount),
+          category,
+        };
+      });
+      setActivity(formattedTx);
+
+      // 5. Parse transaction history to build active UI categories
+      const activeBuckets: Bucket[] = [];
+      rawTxList.forEach((t: any) => {
+        if (t.type === 'withdrawal' && t.status === 'pending') {
+          activeBuckets.push({
+            id: t.id,
+            name: t.description || 'Bill Payment',
+            category: 'bill',
+            amount: parseFloat(t.amount),
+            note: `Set aside and scheduled. The money is reserved, not spendable, but hasn't been sent yet.`,
+          });
+        } else if (t.type === 'transfer' && t.toAccountId === savings.id) {
+          const goalName = t.description || 'Savings Goal';
+          const existing = activeBuckets.find(b => b.name === goalName && b.category === 'goal');
+          if (existing) {
+            existing.current = (existing.current || 0) + parseFloat(t.amount);
+          } else {
+            activeBuckets.push({
+              id: t.id,
+              name: goalName,
+              category: 'goal',
+              current: parseFloat(t.amount),
+              target: 150, // default target mockup
+              note: `Locked until the goal is reached.`,
+            });
+          }
+        }
+      });
+
+      // Save active buckets list directly (starts empty if no buckets have been created)
+      setBuckets(activeBuckets);
+
+      // Write to AsyncStorage cache
+      await AsyncStorage.setItem('bank_balance', summary.availableBalance);
+      await AsyncStorage.setItem('bank_paying_out', summary.payingOut);
+      await AsyncStorage.setItem('bank_saved', summary.lockedBalance);
+      await AsyncStorage.setItem('bank_buckets', JSON.stringify(activeBuckets));
+      await AsyncStorage.setItem('bank_activity', JSON.stringify(formattedTx));
+      await AsyncStorage.setItem('bank_checking_id', String(checking.id));
+      await AsyncStorage.setItem('bank_savings_id', String(savings.id));
+
+    } catch (err) {
+      console.error('Failed to load bank data:', err);
+      const errMsg = (err as Error).message;
+      if (errMsg.includes('Too many requests') || errMsg.includes('429')) {
+        setApiError({
+          title: 'Rate Limit Exceeded',
+          message: 'You have made too many requests. Please wait a few minutes before trying again.',
+        });
+      } else {
+        setApiError({
+          title: 'Network Error',
+          message: 'Unable to connect to the banking server. Please check your network or try again later.',
+        });
+      }
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, [isSignedIn, apiCall]);
+
+  // Refresh data on loading profile
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      loadData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn]);
+
+  // Check cache on mount
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const cachedBalance = await AsyncStorage.getItem('bank_balance');
+        const cachedPayingOut = await AsyncStorage.getItem('bank_paying_out');
+        const cachedSaved = await AsyncStorage.getItem('bank_saved');
+        const cachedBuckets = await AsyncStorage.getItem('bank_buckets');
+        const cachedActivity = await AsyncStorage.getItem('bank_activity');
+        const cachedCheckingId = await AsyncStorage.getItem('bank_checking_id');
+        const cachedSavingsId = await AsyncStorage.getItem('bank_savings_id');
+
+        if (cachedBalance !== null) setBalance(parseFloat(cachedBalance));
+        if (cachedPayingOut !== null) setPayingOut(parseFloat(cachedPayingOut));
+        if (cachedSaved !== null) setSaved(parseFloat(cachedSaved));
+        if (cachedBuckets !== null) setBuckets(JSON.parse(cachedBuckets));
+        if (cachedActivity !== null) setActivity(JSON.parse(cachedActivity));
+        if (cachedCheckingId !== null) setCheckingAccountId(parseInt(cachedCheckingId, 10));
+        if (cachedSavingsId !== null) setSavingsAccountId(parseInt(cachedSavingsId, 10));
+      } catch (err) {
+        console.error('Failed to load bank cache:', err);
+      }
+    };
+    loadCache();
+  }, []);
+
+  // Clear cache on logout
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      AsyncStorage.multiRemove([
+        'bank_balance',
+        'bank_paying_out',
+        'bank_saved',
+        'bank_buckets',
+        'bank_activity',
+        'bank_checking_id',
+        'bank_savings_id',
+      ]).catch(err => console.error('Failed to clear cache on logout:', err));
+
+      // Reset state
+      setBalance(0);
+      setPayingOut(0);
+      setSaved(0);
+      setBuckets([]);
+      setActivity([]);
+      setCheckingAccountId(null);
+      setSavingsAccountId(null);
+    }
+  }, [isLoaded, isSignedIn]);
+
+  // Create new bucket actions
+  const addBucket = async (
+    name: string,
+    category: 'bill' | 'saving' | 'goal',
+    amount: number,
+    date?: string,
+    target?: number,
+    starting?: number
+  ) => {
+    if (!checkingAccountId || !savingsAccountId) return;
     const cleanName = name.trim() || 'New Bucket';
     
-    let note = '';
-    if (category === 'bill') {
-      note = `Set aside and scheduled to pay${date ? ' on ' + date : ' soon'}. The money is reserved, not spendable, but hasn't been sent yet.`;
-    } else if (category === 'saving') {
-      note = 'Held for you, spendable anytime.';
-    } else {
-      note = "Locked until the goal is reached — you'll get a notification the moment it unlocks.";
+    try {
+      if (category === 'bill') {
+        await apiCall('/api/transactions/payments/schedule', {
+          method: 'POST',
+          body: JSON.stringify({
+            checkingAccountId,
+            amount: amount.toFixed(4),
+            description: cleanName,
+          }),
+        });
+      } else if (category === 'goal' || category === 'saving') {
+        const lockAmount = starting || amount || 0;
+        if (lockAmount <= 0) {
+          setApiError({
+            title: 'Starting Amount Required',
+            message: `To create a ${category}, you must allocate a starting amount of at least $1.00 from your available balance.`,
+          });
+          return;
+        }
+
+        await apiCall('/api/transactions/transfer/lock', {
+          method: 'POST',
+          body: JSON.stringify({
+            checkingAccountId,
+            savingsAccountId,
+            amount: lockAmount.toFixed(4),
+            description: cleanName,
+          }),
+        });
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Failed to create bucket:', err);
+      setApiError({
+        title: 'Failed to Create Bucket',
+        message: (err as Error).message,
+      });
     }
-
-    const newBucket: Bucket = category === 'goal'
-      ? { id: newId, name: cleanName, category, current: starting || 0, target: target || Math.max(amount * 3, amount + 50), note }
-      : { id: newId, name: cleanName, category, amount, note, date };
-
-    setBuckets(prev => [...prev, newBucket]);
-
-    // Update totals
-    if (category === 'bill') {
-      setPayingOut(prev => prev + amount);
-    } else if (category === 'saving') {
-      setSaved(prev => prev + amount);
-    } else {
-      setSaved(prev => prev + (starting || 0));
-    }
-
-    // Add activity
-    const newTx: Transaction = {
-      id: Date.now(),
-      label: cleanName,
-      sub: category === 'goal' ? `${formatMoney((target || Math.max(amount * 3, amount + 50)) - (starting || 0))} to go` : (category === 'bill' ? 'scheduled' : 'saved'),
-      amount: -amount,
-      category,
-    };
-    setActivity(prev => [newTx, ...prev]);
   };
 
-  const deleteBucket = (id: number) => {
+  // Delete bucket actions
+  const deleteBucket = async (id: number) => {
+    if (!checkingAccountId || !savingsAccountId) return;
     const bucket = buckets.find(b => b.id === id);
     if (!bucket) return;
 
-    if (bucket.category === 'bill') {
-      setPayingOut(prev => Math.max(0, prev - (bucket.amount || 0)));
-    } else if (bucket.category === 'saving') {
-      setSaved(prev => Math.max(0, prev - (bucket.amount || 0)));
-    } else if (bucket.category === 'goal') {
-      setSaved(prev => Math.max(0, prev - (bucket.current || 0)));
+    try {
+      if (bucket.category === 'bill') {
+        await apiCall('/api/transactions/payments/execute', {
+          method: 'POST',
+          body: JSON.stringify({
+            transactionId: id,
+          }),
+        });
+      } else if (bucket.category === 'goal' || bucket.category === 'saving') {
+        const unlockAmount = bucket.current || bucket.amount || 0;
+        if (unlockAmount > 0) {
+          await apiCall('/api/transactions/transfer/unlock', {
+            method: 'POST',
+            body: JSON.stringify({
+              checkingAccountId,
+              savingsAccountId,
+              amount: unlockAmount.toFixed(4),
+              description: `Unlocked: ${bucket.name}`,
+            }),
+          });
+        }
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Failed to delete bucket:', err);
+      setApiError({
+        title: 'Failed to Delete Bucket',
+        message: (err as Error).message,
+      });
     }
-
-    setBuckets(prev => prev.filter(b => b.id !== id));
   };
 
-  const topUp = (amount: number, source: 'bank' | 'card') => {
-    if (amount <= 0) return;
-    setBalance(prev => prev + amount);
-    
-    const newTx: Transaction = {
-      id: Date.now(),
-      label: 'Top up',
-      sub: source === 'bank' ? 'via bank' : 'via card',
-      amount: amount,
-      category: 'income',
-    };
-    setActivity(prev => [newTx, ...prev]);
+  // Top up actions
+  const topUp = async (amount: number, source: 'bank' | 'card') => {
+    if (amount <= 0 || !checkingAccountId) return;
+    try {
+      await apiCall('/api/transactions/deposit', {
+        method: 'POST',
+        body: JSON.stringify({
+          accountId: checkingAccountId,
+          amount: amount.toFixed(4),
+          description: `Top up via ${source}`,
+        }),
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Top up failed:', err);
+      setApiError({
+        title: 'Top Up Failed',
+        message: (err as Error).message,
+      });
+    }
   };
 
-  const sendMoney = (recipient: string, amount: number, note: string) => {
+  // Send Money peer transfer actions
+  const sendMoney = async (recipient: string, amount: number, note: string) => {
     const cleanRecipient = recipient.trim();
     if (!cleanRecipient) return { success: false, error: 'Add a recipient.' };
     if (amount <= 0) return { success: false, error: 'Enter an amount.' };
     if (amount > balance) return { success: false, error: "That's more than your available balance." };
+    if (!checkingAccountId) return { success: false, error: 'Checking account not loaded.' };
 
-    setBalance(prev => prev - amount);
-    
-    const newTx: Transaction = {
-      id: Date.now(),
-      label: `Sent to ${cleanRecipient}`,
-      sub: note.trim() || 'transfer',
-      amount: -amount,
-      category: 'bill',
-    };
-    setActivity(prev => [newTx, ...prev]);
-    return { success: true };
+    try {
+      await apiCall('/api/transactions/payments/schedule', {
+        method: 'POST',
+        body: JSON.stringify({
+          checkingAccountId,
+          amount: amount.toFixed(4),
+          description: `Sent to ${cleanRecipient} (${note.trim() || 'transfer'})`,
+        }),
+      });
+      await loadData();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
   };
 
+  // Add Card layout items
   const addPaymentCard = () => {
     const newId = Date.now();
     const newCard: PaymentCard = {
@@ -207,30 +458,30 @@ export function BankProvider({ children }: { children: ReactNode }) {
     setPaymentCards(prev => [...prev, newCard]);
   };
 
-  const addToGoal = (goalId: number, amount: number) => {
-    setBuckets(prev =>
-      prev.map(b => {
-        if (b.id === goalId && b.category === 'goal') {
-          const current = Math.min(b.target || 0, (b.current || 0) + amount);
-          return { ...b, current };
-        }
-        return b;
-      })
-    );
+  // Lock money to savings goals
+  const addToGoal = async (goalId: number, amount: number) => {
+    if (!checkingAccountId || !savingsAccountId || amount <= 0) return;
+    const goal = buckets.find(b => b.id === goalId);
+    if (!goal) return;
 
-    const g = buckets.find(b => b.id === goalId);
-    if (!g) return;
-
-    setSaved(prev => prev + amount);
-
-    const newTx: Transaction = {
-      id: Date.now(),
-      label: g.name,
-      sub: `${formatMoney((g.target || 0) - ((g.current || 0) + amount))} to go`,
-      amount: -amount,
-      category: 'goal',
-    };
-    setActivity(prev => [newTx, ...prev]);
+    try {
+      await apiCall('/api/transactions/transfer/lock', {
+        method: 'POST',
+        body: JSON.stringify({
+          checkingAccountId,
+          savingsAccountId,
+          amount: amount.toFixed(4),
+          description: goal.name,
+        }),
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to add to goal:', err);
+      setApiError({
+        title: 'Failed to Lock Funds',
+        message: (err as Error).message,
+      });
+    }
   };
 
   // NLP Chat Parser
@@ -259,90 +510,7 @@ export function BankProvider({ children }: { children: ReactNode }) {
     return { name, cat: isGoalWord ? ('goal' as const) : ('bill' as const), amount };
   };
 
-  const applyNlpBucket = (p: { name: string; cat: 'bill' | 'saving' | 'goal'; amount: number }) => {
-    setBuckets(prevBuckets => {
-      const idx = prevBuckets.findIndex(b => b.name.toLowerCase() === p.name.toLowerCase());
-      let payingOutDelta = 0;
-      let savedDelta = 0;
-      const updatedBuckets = prevBuckets.map(b => ({ ...b }));
-
-      if (idx >= 0) {
-        const old = updatedBuckets[idx];
-        if (old.category === 'bill') payingOutDelta -= old.amount || 0;
-        else if (old.category === 'saving') savedDelta -= old.amount || 0;
-        else if (old.category === 'goal') savedDelta -= old.current || 0;
-
-        if (p.cat === 'goal') {
-          const target = old.target || Math.max(p.amount * 3, p.amount + 50);
-          const current = (old.category === 'goal' ? (old.current || 0) : 0) + p.amount;
-          updatedBuckets[idx] = {
-            ...old,
-            category: 'goal',
-            current,
-            target,
-            note: old.note || "Locked until the goal is reached — you'll get a notification the moment it unlocks."
-          };
-          savedDelta += current;
-        } else {
-          updatedBuckets[idx] = {
-            ...old,
-            category: p.cat,
-            amount: p.amount,
-            note: p.cat === 'bill' 
-              ? `Set aside and scheduled to pay soon. The money is reserved, not spendable, but hasn't been sent yet.`
-              : 'Held for you, spendable anytime.'
-          };
-          if (p.cat === 'bill') payingOutDelta += p.amount;
-          else savedDelta += p.amount;
-        }
-      } else {
-        const newId = Date.now();
-        if (p.cat === 'goal') {
-          const target = Math.max(p.amount * 3, p.amount + 50);
-          updatedBuckets.push({
-            id: newId,
-            name: p.name,
-            category: 'goal',
-            current: p.amount,
-            target,
-            note: "Locked until the goal is reached — you'll get a notification the moment it unlocks."
-          });
-          savedDelta += p.amount;
-        } else {
-          updatedBuckets.push({
-            id: newId,
-            name: p.name,
-            category: p.cat,
-            amount: p.amount,
-            note: p.cat === 'bill'
-              ? `Set aside and scheduled to pay soon. The money is reserved, not spendable, but hasn't been sent yet.`
-              : 'Held for you, spendable anytime.'
-          });
-          if (p.cat === 'bill') payingOutDelta += p.amount;
-          else savedDelta += p.amount;
-        }
-      }
-
-      setPayingOut(prev => Math.max(0, prev + payingOutDelta));
-      setSaved(prev => Math.max(0, prev + savedDelta));
-
-      const finalBucket = updatedBuckets[idx >= 0 ? idx : updatedBuckets.length - 1];
-      const newTx: Transaction = {
-        id: Date.now() + 1,
-        label: finalBucket.name,
-        sub: finalBucket.category === 'goal' 
-          ? `${formatMoney((finalBucket.target || 0) - (finalBucket.current || 0))} to go` 
-          : (finalBucket.category === 'bill' ? 'scheduled' : 'saved'),
-        amount: -(finalBucket.category === 'goal' ? p.amount : (finalBucket.amount || 0)),
-        category: finalBucket.category,
-      };
-      setActivity(prev => [newTx, ...prev]);
-
-      return updatedBuckets;
-    });
-  };
-
-  const sendChatMessage = (text: string) => {
+  const sendChatMessage = async (text: string) => {
     const cleanText = text.trim();
     if (!cleanText) return;
 
@@ -361,7 +529,7 @@ export function BankProvider({ children }: { children: ReactNode }) {
       { id: prev.length + 1, from: 'zara', text: responseText, isUser: false, isZara: true },
     ]);
 
-    applyNlpBucket(parsed);
+    await addBucket(parsed.name, parsed.cat, parsed.amount);
   };
 
   return (
@@ -392,6 +560,12 @@ export function BankProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <CustomAlert
+        visible={apiError !== null}
+        title={apiError?.title || ''}
+        message={apiError?.message || ''}
+        onClose={() => setApiError(null)}
+      />
     </BankContext.Provider>
   );
 }

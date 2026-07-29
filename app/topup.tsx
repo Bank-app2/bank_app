@@ -9,26 +9,30 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useUser } from '@clerk/expo';
+import { Image } from 'expo-image';
 import { useBank } from '@/context/bank-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TopUpScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { topUp, paymentCards } = useBank();
+  const { user } = useUser();
+  const { topUp } = useBank();
 
   // Local state
   const [amount, setAmount] = useState('');
   const [fundingSource, setFundingSource] = useState<'bank' | 'card'>('bank');
 
+  const avatarUrl = user?.imageUrl || null;
+  const parsedAmount = parseFloat(amount) || 0;
+
   const formatMoney = (n: number) => {
     return '$' + Number(n).toFixed(2);
   };
-
-  const parsedAmount = parseFloat(amount) || 0;
-  const cardLabel = paymentCards[0]?.label || 'Card';
 
   const handleConfirm = () => {
     if (parsedAmount <= 0) return;
@@ -42,30 +46,39 @@ export default function TopUpScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* HEADER */}
-        <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 20) }]}>
-          <Text style={styles.headerTitle}>Top up</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.content}>
-          {/* AMOUNT INPUT BLOCK */}
-          <View style={styles.amountBlock}>
-            <Text style={styles.inputPrefix}>$</Text>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor="#9A9A90"
-              keyboardType="decimal-pad"
-              value={amount}
-              onChangeText={setAmount}
-              autoFocus
-            />
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: Math.max(insets.top, 20), paddingBottom: 40 }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* HEADER NAVIGATION ROW */}
+          <View style={styles.headerNavRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Text style={styles.backButtonText}>‹ Back</Text>
+            </TouchableOpacity>
+            {avatarUrl && (
+              <View style={styles.avatarWrapper}>
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              </View>
+            )}
           </View>
 
-          {/* CHIP PRESETS */}
+          {/* PAGE TITLE */}
+          <Text style={styles.pageTitle}>Top up</Text>
+
+          {/* LIME AMOUNT DISPLAY CARD */}
+          <View style={styles.amountCard}>
+            <Text style={styles.amountCardLabel}>Amount to add</Text>
+            <Text style={styles.amountCardValue}>
+              {formatMoney(parsedAmount)}
+            </Text>
+          </View>
+
+          {/* PRESET CHIPS */}
           <View style={styles.chipsRow}>
             {[20, 50, 100, 200].map((val) => (
               <TouchableOpacity
@@ -73,62 +86,74 @@ export default function TopUpScreen() {
                 style={styles.chip}
                 onPress={() => setAmount(String(val))}
               >
-                <Text style={styles.chipText}>+${val}</Text>
+                <Text style={styles.chipText}>${val}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* FUNDING SOURCE */}
-          <Text style={styles.sectionLabel}>Funding source</Text>
-          <View style={styles.segmentContainer}>
-            <TouchableOpacity
-              style={[
-                styles.segmentButton,
-                fundingSource === 'bank' && styles.segmentButtonActive
-              ]}
-              onPress={() => setFundingSource('bank')}
-            >
-              <Text 
-                style={[
-                  styles.segmentText,
-                  fundingSource === 'bank' && styles.segmentTextActive
-                ]}
-              >
-                Bank Account
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.segmentButton,
-                fundingSource === 'card' && styles.segmentButtonActive
-              ]}
-              onPress={() => setFundingSource('card')}
-            >
-              <Text 
-                style={[
-                  styles.segmentText,
-                  fundingSource === 'card' && styles.segmentTextActive
-                ]}
-              >
-                {cardLabel}
-              </Text>
-            </TouchableOpacity>
+          {/* INPUT FIELD CONTAINER */}
+          <View style={styles.inputFieldBlock}>
+            <Text style={styles.sectionLabel}>Or enter amount</Text>
+            <TextInput
+              style={styles.textInputCapsule}
+              placeholder="0"
+              placeholderTextColor="#9A9A90"
+              keyboardType="decimal-pad"
+              value={amount}
+              onChangeText={setAmount}
+            />
           </View>
-        </View>
 
-        {/* CONFIRM BUTTON */}
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          {/* FUNDING SOURCE SEGMENT */}
+          <View style={styles.fundingBlock}>
+            <Text style={styles.sectionLabel}>Funding source</Text>
+            <View style={styles.segmentContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.segmentButton,
+                  fundingSource === 'bank' && styles.segmentButtonActive
+                ]}
+                onPress={() => setFundingSource('bank')}
+              >
+                <Text 
+                  style={[
+                    styles.segmentText,
+                    fundingSource === 'bank' && styles.segmentTextActive
+                  ]}
+                >
+                  Bank
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.segmentButton,
+                  fundingSource === 'card' && styles.segmentButtonActive
+                ]}
+                onPress={() => setFundingSource('card')}
+              >
+                <Text 
+                  style={[
+                    styles.segmentText,
+                    fundingSource === 'card' && styles.segmentTextActive
+                  ]}
+                >
+                  Card
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ACTION SUBMIT BUTTON */}
           <TouchableOpacity
             style={[styles.confirmButton, parsedAmount <= 0 && { opacity: 0.5 }]}
             disabled={parsedAmount <= 0}
             onPress={handleConfirm}
+            activeOpacity={0.9}
           >
-            <Text style={styles.confirmButtonText}>
-              Top up {parsedAmount > 0 ? formatMoney(parsedAmount) : ''}
-            </Text>
+            <Text style={styles.confirmButtonText}>Add funds</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
@@ -137,66 +162,90 @@ export default function TopUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Clean White background
+    backgroundColor: '#F1EEE4', // Warm Beige layout background
   },
-  headerRow: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 28,
+    paddingTop: 16,
+  },
+  headerNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    marginBottom: 8,
   },
-  headerTitle: {
-    fontSize: 20,
+  backButton: {
+    paddingVertical: 6,
+    paddingRight: 12,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10201B',
+  },
+  avatarWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ECEEE4',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  pageTitle: {
+    fontSize: 30,
     fontWeight: '800',
     color: '#10201B',
+    marginBottom: 20,
+    letterSpacing: -0.5,
   },
-  closeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: '#ECEEE4',
-  },
-  closeButtonText: {
-    color: '#10201B',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 36,
-  },
-  amountBlock: {
-    flexDirection: 'row',
+  amountCard: {
+    backgroundColor: '#C5F347', // Brand Lime Green
+    borderRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#10201B',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  inputPrefix: {
-    fontSize: 48,
+  amountCardLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3d4a24',
+    marginBottom: 6,
+  },
+  amountCardValue: {
+    fontSize: 36,
     fontWeight: '800',
     color: '#10201B',
-    marginRight: 4,
-  },
-  amountInput: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#10201B',
-    minWidth: 120,
   },
   chipsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
-    marginBottom: 36,
+    marginBottom: 24,
   },
   chip: {
     flex: 1,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: '#ECEEE4',
     alignItems: 'center',
     justifyContent: 'center',
@@ -206,25 +255,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10201B',
   },
+  inputFieldBlock: {
+    marginBottom: 24,
+  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
     color: '#6F6F68',
-    textTransform: 'uppercase',
     marginBottom: 8,
-    letterSpacing: 0.5,
+  },
+  textInputCapsule: {
+    width: '100%',
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ECEEE4',
+    paddingHorizontal: 18,
+    fontSize: 14,
+    color: '#10201B',
+    fontWeight: '600',
+  },
+  fundingBlock: {
+    marginBottom: 32,
   },
   segmentContainer: {
     flexDirection: 'row',
     backgroundColor: '#ECEEE4',
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 4,
   },
   segmentButton: {
     flex: 1,
-    paddingVertical: 10,
+    height: 40,
     alignItems: 'center',
-    borderRadius: 16,
+    justifyContent: 'center',
+    borderRadius: 20,
   },
   segmentButtonActive: {
     backgroundColor: '#FFFFFF',
@@ -241,16 +305,12 @@ const styles = StyleSheet.create({
     }),
   },
   segmentText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: '#6F6F68',
   },
   segmentTextActive: {
     color: '#10201B',
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
   },
   confirmButton: {
     backgroundColor: '#10201B',

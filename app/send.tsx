@@ -31,7 +31,7 @@ export default function SendScreen() {
 
   const parsedAmount = parseFloat(amount) || 0;
 
-  const handleSend = () => {
+  const handleSend = async () => {
     setError('');
     
     // Validate tag format
@@ -55,7 +55,7 @@ export default function SendScreen() {
       return;
     }
 
-    const result = sendMoney(cleanRecipient, parsedAmount, note);
+    const result = await sendMoney(cleanRecipient, parsedAmount, note);
     if (result.success) {
       router.back();
     } else if (result.error) {
