@@ -27,7 +27,7 @@ export default function PaymentsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -35,10 +35,10 @@ export default function PaymentsScreen() {
         <Text style={styles.sectionLabel}>Linked cards</Text>
         <View style={styles.cardsList}>
           {paymentCards.map((card, index) => (
-            <View 
-              key={card.id} 
+            <View
+              key={card.id}
               style={[
-                styles.cardRow, 
+                styles.cardRow,
                 index === paymentCards.length - 1 && { borderBottomWidth: 0 }
               ]}
             >
@@ -69,7 +69,7 @@ export default function PaymentsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Clean White background
+    backgroundColor: '#FFFFFF',
   },
   headerRow: {
     flexDirection: 'row',

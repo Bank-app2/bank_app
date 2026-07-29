@@ -9,13 +9,20 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { useBank } from '@/context/bank-context';
+import { useBank, Recurrence } from '@/context/bank-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
+const RECURRENCE_OPTIONS: { key: Recurrence; label: string }[] = [
+  { key: 'once', label: 'One-time' },
+  { key: 'monthly', label: 'Monthly' },
+  { key: 'quarterly', label: 'Quarterly (3mo)' },
+  { key: 'annually', label: 'Annually' },
+];
+
 export default function BucketsScreen() {
   const insets = useSafeAreaInsets();
-  
+
   const {
     buckets,
     addBucket,
@@ -34,6 +41,7 @@ export default function BucketsScreen() {
   const [newCategory, setNewCategory] = useState<'bill' | 'saving' | 'goal'>('bill');
   const [newDueDate, setNewDueDate] = useState('');
   const [newStarting, setNewStarting] = useState('');
+  const [newRecurrence, setNewRecurrence] = useState<Recurrence>('monthly');
 
   // Format currency helper
   const formatMoney = (n: number) => {
@@ -54,24 +62,28 @@ export default function BucketsScreen() {
   const totalGoalCurrent = rawGoals.reduce((sum, b) => sum + (b.current || 0), 0);
   const goalOverallPct = totalGoalTarget > 0 ? Math.min(100, Math.round((totalGoalCurrent / totalGoalTarget) * 100)) : 0;
 
-  const handleCreateBucket = () => {
-    if (!newName.trim() || !newAmount) return;
-    const amt = parseFloat(newAmount) || 0;
-    
-    if (newCategory === 'goal') {
-      const target = amt;
-      const starting = parseFloat(newStarting) || 0;
-      addBucket(newName, 'goal', 0, undefined, target, starting);
-    } else {
-      addBucket(newName, newCategory, amt, newDueDate.trim() || undefined);
-    }
-
-    // Reset and close
+  const resetForm = () => {
     setNewName('');
     setNewAmount('');
     setNewCategory('bill');
     setNewDueDate('');
     setNewStarting('');
+    setNewRecurrence('monthly');
+  };
+
+  const handleCreateBucket = () => {
+    if (!newName.trim() || !newAmount) return;
+    const amt = parseFloat(newAmount) || 0;
+
+    if (newCategory === 'goal') {
+      const target = amt;
+      const starting = parseFloat(newStarting) || 0;
+      addBucket(newName, 'goal', 0, undefined, target, starting, newRecurrence, newDueDate.trim() || undefined);
+    } else {
+      addBucket(newName, newCategory, amt, newDueDate.trim() || undefined, undefined, amt, newRecurrence, newDueDate.trim() || undefined);
+    }
+
+    resetForm();
     setAddModalOpen(false);
   };
 
@@ -95,7 +107,7 @@ export default function BucketsScreen() {
           >
             <Text style={[styles.tabText, activeTab === 'bill' && styles.tabTextActive]}>Bills</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'saving' && styles.tabButtonActive]}
             onPress={() => setActiveTab('saving')}
@@ -119,8 +131,8 @@ export default function BucketsScreen() {
               {activeTab === 'bill' ? billCountLabel : activeTab === 'saving' ? savingCountLabel : goalCountLabel}
             </Text>
           </View>
-          <TouchableOpacity 
-            style={styles.addButton} 
+          <TouchableOpacity
+            style={styles.addButton}
             onPress={() => {
               setNewCategory(activeTab);
               setAddModalOpen(true);
@@ -135,8 +147,7 @@ export default function BucketsScreen() {
           <View style={styles.overallGoalCard}>
             <Text style={styles.overallGoalTitle}>Total locked</Text>
             <Text style={styles.overallGoalValue}>{formatMoney(totalGoalCurrent)}</Text>
-            
-            {/* GOAL DONUT GRAPH REPRESENTATION */}
+
             <View style={styles.donutContainer}>
               <View style={styles.donutRing}>
                 <View style={styles.donutCenter}>
@@ -155,6 +166,9 @@ export default function BucketsScreen() {
               const progressPct = bucket.category === 'goal' && bucket.target
                 ? Math.min(100, Math.round(((bucket.current || 0) / bucket.target) * 100))
                 : 0;
+              const recurrenceLabel = bucket.recurrence && bucket.recurrence !== 'once'
+                ? RECURRENCE_OPTIONS.find(r => r.key === bucket.recurrence)?.label
+                : null;
 
               return (
                 <TouchableOpacity
@@ -168,9 +182,9 @@ export default function BucketsScreen() {
                         <Text style={styles.progressCircleText}>{progressPct}%</Text>
                       </View>
                     ) : (
-                      <View 
+                      <View
                         style={[
-                          styles.avatarCircle, 
+                          styles.avatarCircle,
                           { backgroundColor: bucket.category === 'bill' ? '#C5F347' : '#ECEEE4' }
                         ]}
                       >
@@ -191,15 +205,20 @@ export default function BucketsScreen() {
                     </View>
                   </View>
                   <Text style={styles.bucketNote}>{bucket.note}</Text>
+                  {recurrenceLabel && (
+                    <View style={styles.recurrencePill}>
+                      <Text style={styles.recurrencePillText}>Repeats {recurrenceLabel.toLowerCase()}</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })
           ) : (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <IconSymbol 
-                  name={activeTab === 'bill' ? 'doc.text' : activeTab === 'saving' ? 'archivebox' : 'lock'} 
-                  size={48} 
+                <IconSymbol
+                  name={activeTab === 'bill' ? 'doc.text' : activeTab === 'saving' ? 'archivebox' : 'lock'}
+                  size={48}
                   color="#10201B4D"
                 />
               </View>
@@ -307,6 +326,27 @@ export default function BucketsScreen() {
               </>
             )}
 
+            {/* RECURRENCE — same question for bills, savings, and goals:
+                "is this monthly, quarterly, annually, or one-time?" */}
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>
+                {newCategory === 'bill' ? 'How often does this bill repeat?' : 'How often should this be funded?'}
+              </Text>
+              <View style={styles.recurrenceRow}>
+                {RECURRENCE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.recurrenceChip, newRecurrence === opt.key && styles.recurrenceChipActive]}
+                    onPress={() => setNewRecurrence(opt.key)}
+                  >
+                    <Text style={[styles.recurrenceChipText, newRecurrence === opt.key && styles.recurrenceChipTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             {/* BUTTONS BAR */}
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity
@@ -340,8 +380,11 @@ export default function BucketsScreen() {
                 <Text style={styles.detailTitle}>{selectedDetailBucket.name}</Text>
                 <Text style={styles.detailCategory}>
                   Category: {selectedDetailBucket.category.toUpperCase()}
+                  {selectedDetailBucket.recurrence && selectedDetailBucket.recurrence !== 'once'
+                    ? ` · Repeats ${selectedDetailBucket.recurrence}`
+                    : ''}
                 </Text>
-                
+
                 <View style={styles.detailContentContainer}>
                   <Text style={styles.detailAmountLabel}>Target / Amount</Text>
                   <Text style={styles.detailAmountValue}>
@@ -349,7 +392,7 @@ export default function BucketsScreen() {
                       ? `${formatMoney(selectedDetailBucket.current || 0)} / ${formatMoney(selectedDetailBucket.target || 0)}`
                       : formatMoney(selectedDetailBucket.amount || 0)}
                   </Text>
-                  
+
                   <Text style={styles.detailNoteLabel}>Notes</Text>
                   <Text style={styles.detailNoteValue}>{selectedDetailBucket.note}</Text>
                 </View>
@@ -383,7 +426,7 @@ export default function BucketsScreen() {
                   >
                     <Text style={styles.deleteButtonText}>Delete bucket</Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={styles.closeDetailButton}
                     onPress={() => setDetailModalId(null)}
@@ -521,7 +564,7 @@ const styles = StyleSheet.create({
     borderRadius: 95,
     backgroundColor: '#ECEEE4',
     borderWidth: 20,
-    borderColor: '#C5F347', // Ring represent overall goals target filled progress
+    borderColor: '#C5F347',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -586,7 +629,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: '#ECEEE4',
     borderWidth: 6,
-    borderColor: '#10201B', // Dark outline progress
+    borderColor: '#10201B',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -617,6 +660,19 @@ const styles = StyleSheet.create({
     color: '#9A9A90',
     fontWeight: '500',
     lineHeight: 16,
+  },
+  recurrencePill: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECEEE4',
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  recurrencePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7A9A3F',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -695,33 +751,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#10201B',
   },
-  segmentContainer: {
+  recurrenceRow: {
     flexDirection: 'row',
-    backgroundColor: '#ECEEE4',
-    borderRadius: 20,
-    padding: 4,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  segmentButton: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
+  recurrenceChip: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: 16,
+    backgroundColor: '#ECEEE4',
   },
-  segmentButtonActive: {
-    backgroundColor: '#FFFFFF',
+  recurrenceChipActive: {
+    backgroundColor: '#C5F347',
   },
-  segmentText: {
+  recurrenceChipText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#6F6F68',
   },
-  segmentTextActive: {
+  recurrenceChipTextActive: {
     color: '#10201B',
   },
   modalButtonsRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 10,
+    marginTop: 14,
   },
   modalButton: {
     flex: 1,

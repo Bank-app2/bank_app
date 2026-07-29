@@ -19,7 +19,6 @@ export default function SendScreen() {
   const insets = useSafeAreaInsets();
   const { balance, sendMoney } = useBank();
 
-  // Local form state
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -33,14 +32,13 @@ export default function SendScreen() {
 
   const handleSend = async () => {
     setError('');
-    
-    // Validate tag format
+
     let cleanRecipient = recipient.trim();
     if (!cleanRecipient) {
       setError('Please enter a recipient tag.');
       return;
     }
-    
+
     if (!cleanRecipient.startsWith('@')) {
       cleanRecipient = '@' + cleanRecipient;
     }
@@ -69,7 +67,6 @@ export default function SendScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* HEADER */}
         <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 20) }]}>
           <Text style={styles.headerTitle}>Send money</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
@@ -78,13 +75,11 @@ export default function SendScreen() {
         </View>
 
         <View style={styles.content}>
-          {/* AVAILABLE BALANCE BAR */}
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>Available balance:</Text>
             <Text style={styles.balanceValue}>{formatMoney(balance)}</Text>
           </View>
 
-          {/* FIELD: RECIPIENT */}
           <View style={styles.inputField}>
             <Text style={styles.inputLabel}>Recipient handle</Text>
             <TextInput
@@ -101,7 +96,6 @@ export default function SendScreen() {
             />
           </View>
 
-          {/* FIELD: AMOUNT */}
           <View style={styles.inputField}>
             <Text style={styles.inputLabel}>Amount</Text>
             <View style={styles.amountInputRow}>
@@ -120,7 +114,6 @@ export default function SendScreen() {
             </View>
           </View>
 
-          {/* FIELD: NOTE */}
           <View style={styles.inputField}>
             <Text style={styles.inputLabel}>Note (optional)</Text>
             <TextInput
@@ -132,7 +125,6 @@ export default function SendScreen() {
             />
           </View>
 
-          {/* ERROR DISPLAY BANNER */}
           {error ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{error}</Text>
@@ -140,7 +132,6 @@ export default function SendScreen() {
           ) : null}
         </View>
 
-        {/* CONFIRM BUTTON */}
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TouchableOpacity
             style={[styles.confirmButton, (parsedAmount <= 0 || !recipient.trim()) && { opacity: 0.5 }]}
@@ -161,7 +152,7 @@ export default function SendScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Clean White background
+    backgroundColor: '#FFFFFF',
   },
   headerRow: {
     flexDirection: 'row',

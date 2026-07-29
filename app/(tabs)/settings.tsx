@@ -16,7 +16,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { signOut } = useAuth();
-  
+
   const {
     notificationsOn,
     faceIdOn,
@@ -39,7 +39,6 @@ export default function SettingsScreen() {
     >
       <Text style={styles.title}>Settings</Text>
 
-      {/* USER PROFILE CARD */}
       <View style={styles.profileCard}>
         <View style={styles.avatarContainer}>
           {avatarUrl ? (
@@ -58,12 +57,10 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* SETTINGS OPTIONS LIST */}
       <View style={styles.optionsList}>
-        {/* ROW: NOTIFICATIONS */}
         <View style={styles.optionRow}>
           <Text style={styles.optionLabel}>Notifications</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             activeOpacity={0.8}
             onPress={toggleNotifications}
             style={[
@@ -71,7 +68,7 @@ export default function SettingsScreen() {
               { backgroundColor: notificationsOn ? '#C5F347' : '#DCDED2' }
             ]}
           >
-            <View 
+            <View
               style={[
                 styles.switchKnob,
                 { alignSelf: notificationsOn ? 'flex-end' : 'flex-start' }
@@ -80,10 +77,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ROW: FACE ID */}
         <View style={[styles.optionRow, { borderBottomWidth: 0 }]}>
           <Text style={styles.optionLabel}>Face ID</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             activeOpacity={0.8}
             onPress={toggleFaceId}
             style={[
@@ -91,7 +87,7 @@ export default function SettingsScreen() {
               { backgroundColor: faceIdOn ? '#C5F347' : '#DCDED2' }
             ]}
           >
-            <View 
+            <View
               style={[
                 styles.switchKnob,
                 { alignSelf: faceIdOn ? 'flex-end' : 'flex-start' }
@@ -101,9 +97,8 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* LOGOUT BUTTON */}
-      <TouchableOpacity 
-        style={styles.logoutButton} 
+      <TouchableOpacity
+        style={styles.logoutButton}
         onPress={() => signOut()}
         activeOpacity={0.9}
       >
@@ -116,7 +111,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4', // Warm Beige
+    backgroundColor: '#F1EEE4',
   },
   contentContainer: {
     paddingHorizontal: 20,
@@ -239,7 +234,7 @@ const styles = StyleSheet.create({
     }),
   },
   logoutButton: {
-    backgroundColor: '#2F5D50', // Pine/Accent Green
+    backgroundColor: '#2F5D50',
     borderRadius: 25,
     height: 50,
     alignItems: 'center',
@@ -257,7 +252,7 @@ const styles = StyleSheet.create({
     }),
   },
   logoutButtonText: {
-    color: '#F1EEE4', // Beige
+    color: '#F1EEE4',
     fontSize: 15,
     fontWeight: '700',
   },

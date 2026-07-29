@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function ZaraScreen() {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
-  
+
   const {
     chat,
     chatInput,
@@ -24,7 +24,6 @@ export default function ZaraScreen() {
     sendChatMessage,
   } = useBank();
 
-  // Auto-scroll to end on chat updates
   useEffect(() => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -78,12 +77,25 @@ export default function ZaraScreen() {
         })}
       </ScrollView>
 
-      {/* INPUT CONTAINER */}
-      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
+      {/* INPUT CONTAINER
+          FIX: the tab bar in app/(tabs)/_layout.tsx is position: 'absolute'
+          and floats over screen content (height 90 on iOS / 70 on Android).
+          Home, Buckets, and Settings already add paddingBottom: 100 to clear
+          it — this screen didn't, so the input row was rendering underneath
+          the tab bar and was never visible. This adds that same clearance. */}
+      <View
+        style={[
+          styles.inputContainer,
+          {
+            paddingBottom:
+              Math.max(insets.bottom, 12) + 12 + (Platform.OS === 'ios' ? 90 : 70),
+          },
+        ]}
+      >
         <TouchableOpacity style={styles.micButton} activeOpacity={0.8}>
           <IconSymbol name="message.fill" size={16} color="#10201B" />
         </TouchableOpacity>
-        
+
         <TextInput
           style={styles.textInput}
           placeholder="Or type to Zara…"
@@ -105,7 +117,7 @@ export default function ZaraScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4', // Warm Beige
+    backgroundColor: '#F1EEE4',
   },
   headerContainer: {
     backgroundColor: '#F1EEE4',
@@ -141,14 +153,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   userBubble: {
-    backgroundColor: '#10201B', // Deep Forest Green
+    backgroundColor: '#10201B',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 4,
   },
   zaraBubble: {
-    backgroundColor: '#ECEEE4', // Light Gray/Beige
+    backgroundColor: '#ECEEE4',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 4,
@@ -179,7 +191,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#C5F347', // Lime Green
+    backgroundColor: '#C5F347',
     alignItems: 'center',
     justifyContent: 'center',
   },

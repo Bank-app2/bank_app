@@ -23,7 +23,6 @@ export default function TopUpScreen() {
   const { user } = useUser();
   const { topUp } = useBank();
 
-  // Local state
   const [amount, setAmount] = useState('');
   const [fundingSource, setFundingSource] = useState<'bank' | 'card'>('bank');
 
@@ -55,7 +54,6 @@ export default function TopUpScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* HEADER NAVIGATION ROW */}
           <View style={styles.headerNavRow}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Text style={styles.backButtonText}>‹ Back</Text>
@@ -67,10 +65,8 @@ export default function TopUpScreen() {
             )}
           </View>
 
-          {/* PAGE TITLE */}
           <Text style={styles.pageTitle}>Top up</Text>
 
-          {/* LIME AMOUNT DISPLAY CARD */}
           <View style={styles.amountCard}>
             <Text style={styles.amountCardLabel}>Amount to add</Text>
             <Text style={styles.amountCardValue}>
@@ -78,7 +74,6 @@ export default function TopUpScreen() {
             </Text>
           </View>
 
-          {/* PRESET CHIPS */}
           <View style={styles.chipsRow}>
             {[20, 50, 100, 200].map((val) => (
               <TouchableOpacity
@@ -91,7 +86,6 @@ export default function TopUpScreen() {
             ))}
           </View>
 
-          {/* INPUT FIELD CONTAINER */}
           <View style={styles.inputFieldBlock}>
             <Text style={styles.sectionLabel}>Or enter amount</Text>
             <TextInput
@@ -104,7 +98,6 @@ export default function TopUpScreen() {
             />
           </View>
 
-          {/* FUNDING SOURCE SEGMENT */}
           <View style={styles.fundingBlock}>
             <Text style={styles.sectionLabel}>Funding source</Text>
             <View style={styles.segmentContainer}>
@@ -115,7 +108,7 @@ export default function TopUpScreen() {
                 ]}
                 onPress={() => setFundingSource('bank')}
               >
-                <Text 
+                <Text
                   style={[
                     styles.segmentText,
                     fundingSource === 'bank' && styles.segmentTextActive
@@ -132,7 +125,7 @@ export default function TopUpScreen() {
                 ]}
                 onPress={() => setFundingSource('card')}
               >
-                <Text 
+                <Text
                   style={[
                     styles.segmentText,
                     fundingSource === 'card' && styles.segmentTextActive
@@ -144,7 +137,6 @@ export default function TopUpScreen() {
             </View>
           </View>
 
-          {/* ACTION SUBMIT BUTTON */}
           <TouchableOpacity
             style={[styles.confirmButton, parsedAmount <= 0 && { opacity: 0.5 }]}
             disabled={parsedAmount <= 0}
@@ -162,7 +154,7 @@ export default function TopUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4', // Warm Beige layout background
+    backgroundColor: '#F1EEE4',
   },
   scrollView: {
     flex: 1,
@@ -206,7 +198,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   amountCard: {
-    backgroundColor: '#C5F347', // Brand Lime Green
+    backgroundColor: '#C5F347',
     borderRadius: 24,
     paddingVertical: 24,
     paddingHorizontal: 16,

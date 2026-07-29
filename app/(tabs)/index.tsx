@@ -20,7 +20,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useUser();
   const insets = useSafeAreaInsets();
-  
+
   const {
     balance,
     payingOut,
@@ -30,18 +30,15 @@ export default function HomeScreen() {
     toggleBalanceHidden,
   } = useBank();
 
-  // Pagination local state
   const [txPage, setTxPage] = React.useState(0);
 
   const firstName = user?.firstName || 'there';
   const avatarUrl = user?.imageUrl || null;
 
-  // Format currency helper
   const formatMoney = (n: number) => {
     return '$' + Number(n).toFixed(2);
   };
 
-  // Map transaction rows to template rendering logic
   const processedActivity = activity.map(a => {
     const isIncome = a.category === 'income';
     const bg = a.category === 'bill' ? '#C5F347' : a.category === 'saving' ? '#ECEEE4' : '#10201B';
@@ -64,10 +61,10 @@ export default function HomeScreen() {
   const txNext = () => setTxPage(prev => Math.min(txTotalPages - 1, prev + 1));
 
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={[
-        styles.contentContainer, 
+        styles.contentContainer,
         { paddingTop: Math.max(insets.top, 20), paddingBottom: 100 }
       ]}
       showsVerticalScrollIndicator={false}
@@ -75,8 +72,8 @@ export default function HomeScreen() {
       {/* HEADER SECTION */}
       <View style={styles.headerRow}>
         <Text style={styles.welcomeText}>Welcome, {firstName}</Text>
-        <TouchableOpacity 
-          style={styles.avatarButton} 
+        <TouchableOpacity
+          style={styles.avatarButton}
           onPress={() => router.push('/(tabs)/settings')}
         >
           {avatarUrl ? (
@@ -94,10 +91,10 @@ export default function HomeScreen() {
         <View style={styles.balanceHeaderRow}>
           <Text style={styles.balanceLabel}>Available balance</Text>
           <TouchableOpacity onPress={toggleBalanceHidden} style={styles.eyeButton}>
-            <IconSymbol 
-              name={balanceHidden ? "eye.slash.fill" : "eye.fill"} 
-              size={20} 
-              color="#10201B" 
+            <IconSymbol
+              name={balanceHidden ? "eye.slash.fill" : "eye.fill"}
+              size={20}
+              color="#10201B"
             />
           </TouchableOpacity>
         </View>
@@ -116,20 +113,13 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* QUICK ACTIONS BAR */}
+      {/* QUICK ACTIONS BAR — "Receive" removed per request; Top up / Send / Payments remain */}
       <View style={styles.actionsBar}>
         <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/topup')}>
           <View style={styles.actionIconContainer}>
             <IconSymbol name="arrow.up.circle" size={24} color="#10201B" />
           </View>
           <Text style={styles.actionLabel}>Top up</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/receive')}>
-          <View style={styles.actionIconContainer}>
-            <IconSymbol name="arrow.down.circle" size={24} color="#10201B" />
-          </View>
-          <Text style={styles.actionLabel}>Receive</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/send')}>
@@ -152,10 +142,10 @@ export default function HomeScreen() {
       <View style={styles.transactionsContainer}>
         {pagedActivity.length > 0 ? (
           pagedActivity.map((item, index) => (
-            <View 
-              key={item.id} 
+            <View
+              key={item.id}
               style={[
-                styles.transactionRow, 
+                styles.transactionRow,
                 index === pagedActivity.length - 1 && { borderBottomWidth: 0 }
               ]}
             >
@@ -181,8 +171,8 @@ export default function HomeScreen() {
       {/* TRANSACTION PAGINATION DOTS */}
       {txTotalPages > 1 ? (
         <View style={styles.pagerContainer}>
-          <TouchableOpacity 
-            style={[styles.pagerArrow, activeTxPage === 0 && { opacity: 0.4 }]} 
+          <TouchableOpacity
+            style={[styles.pagerArrow, activeTxPage === 0 && { opacity: 0.4 }]}
             onPress={txPrev}
             disabled={activeTxPage === 0}
           >
@@ -190,18 +180,18 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <View style={styles.dotsRow}>
             {Array.from({ length: txTotalPages }).map((_, i) => (
-              <TouchableOpacity 
-                key={i} 
+              <TouchableOpacity
+                key={i}
                 onPress={() => setTxPage(i)}
                 style={[
-                  styles.dot, 
+                  styles.dot,
                   i === activeTxPage ? styles.activeDot : null
                 ]}
               />
             ))}
           </View>
-          <TouchableOpacity 
-            style={[styles.pagerArrow, activeTxPage >= txTotalPages - 1 && { opacity: 0.4 }]} 
+          <TouchableOpacity
+            style={[styles.pagerArrow, activeTxPage >= txTotalPages - 1 && { opacity: 0.4 }]}
             onPress={txNext}
             disabled={activeTxPage >= txTotalPages - 1}
           >
@@ -216,7 +206,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4', // Warm Beige
+    backgroundColor: '#F1EEE4',
   },
   contentContainer: {
     paddingHorizontal: 20,
@@ -231,7 +221,7 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#10201B', // Forest Green
+    color: '#10201B',
   },
   avatarButton: {
     width: 36,
@@ -256,7 +246,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   balanceCard: {
-    backgroundColor: '#C5F347', // Bright Lime Green
+    backgroundColor: '#C5F347',
     borderRadius: 28,
     padding: 22,
     marginBottom: 20,
@@ -342,12 +332,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#10201B',
-  },
-  topUpIcon: {
-    transform: [{ rotate: '-90deg' }],
-  },
-  receiveIcon: {
-    transform: [{ rotate: '90deg' }],
   },
   sectionTitle: {
     fontSize: 17,

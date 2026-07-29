@@ -17,7 +17,6 @@ export default function ReceiveScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
 
-  // Local state
   const [copied, setCopied] = useState(false);
 
   const username = user?.firstName ? user.firstName.toLowerCase() : 'yourname';
@@ -35,7 +34,6 @@ export default function ReceiveScreen() {
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
       <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 20) }]}>
         <Text style={styles.headerTitle}>Receive</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
@@ -44,7 +42,6 @@ export default function ReceiveScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* BIG ICON DISPLAY */}
         <View style={styles.qrPlaceholder}>
           <View style={styles.iconContainer}>
             <IconSymbol name="house.fill" size={60} color="#10201B" />
@@ -52,14 +49,12 @@ export default function ReceiveScreen() {
           <Text style={styles.qrHelper}>Scan or share this tag to receive money instantly</Text>
         </View>
 
-        {/* HANDLE CONTAINER */}
         <View style={styles.tagCard}>
           <Text style={styles.tagLabel}>Your Zara Tag</Text>
           <Text style={styles.tagValue}>{tag}</Text>
         </View>
       </View>
 
-      {/* COPY BUTTON */}
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         <TouchableOpacity
           style={[styles.copyButton, copied && styles.copyButtonActive]}
@@ -81,7 +76,7 @@ export default function ReceiveScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // Clean White background
+    backgroundColor: '#FFFFFF',
   },
   headerRow: {
     flexDirection: 'row',
@@ -125,7 +120,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#C5F347', // Bright Lime Green
+    backgroundColor: '#C5F347',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -182,7 +177,7 @@ const styles = StyleSheet.create({
     }),
   },
   copyButtonActive: {
-    backgroundColor: '#2F5D50', // Gray-green active state
+    backgroundColor: '#2F5D50',
   },
   copyButtonContent: {
     flexDirection: 'row',
