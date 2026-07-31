@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarPlaceholderText: {
-    color: '#F1EEE4',
+    color: '#F3F4EE',
     fontSize: 14,
     fontWeight: '700',
   },

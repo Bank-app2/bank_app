@@ -111,7 +111,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
   },
   contentContainer: {
     paddingHorizontal: 20,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarPlaceholderText: {
-    color: '#F1EEE4',
+    color: '#F3F4EE',
     fontSize: 20,
     fontWeight: '700',
   },
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     }),
   },
   logoutButtonText: {
-    color: '#F1EEE4',
+    color: '#F3F4EE',
     fontSize: 15,
     fontWeight: '700',
   },

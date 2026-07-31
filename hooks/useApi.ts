@@ -1,11 +1,17 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useAuth } from '@clerk/expo';
 
 export function useApi() {
-  const { getToken } = useAuth();
+  const { getToken, signOut } = useAuth();
+  
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+  
+  const signOutRef = useRef(signOut);
+  signOutRef.current = signOut;
 
   const apiCall = useCallback(async (path: string, options: RequestInit = {}) => {
-    const token = await getToken();
+    const token = await getTokenRef.current();
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
@@ -16,11 +22,14 @@ export function useApi() {
       headers,
     });
     if (!response.ok) {
+      if (response.status === 401) {
+        await signOutRef.current();
+      }
       const errBody = await response.json().catch(() => ({}));
       throw new Error(errBody.error || `HTTP error! status: ${response.status}`);
     }
     return response.json();
-  }, [getToken]);
+  }, []);
 
   return apiCall;
 }

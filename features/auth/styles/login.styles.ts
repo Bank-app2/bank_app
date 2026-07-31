@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F1EEE4", // Warm Beige background
+    backgroundColor: "#F3F4EE", // Warm Beige background
   },
   circleHeader: {
     position: "absolute",

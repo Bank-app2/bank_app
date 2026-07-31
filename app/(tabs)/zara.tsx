@@ -117,10 +117,10 @@ export default function ZaraScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
   },
   headerContainer: {
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
   },

@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   cardsList: {
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
     borderRadius: 20,
     paddingHorizontal: 16,
     marginBottom: 12,

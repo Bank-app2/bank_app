@@ -354,7 +354,7 @@ export default function BucketsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4', // Warm Beige
+    backgroundColor: '#F3F4EE', // Warm Beige
   },
   scrollView: {
     flex: 1,

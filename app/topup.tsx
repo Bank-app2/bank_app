@@ -154,7 +154,7 @@ export default function TopUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
   },
   scrollView: {
     flex: 1,

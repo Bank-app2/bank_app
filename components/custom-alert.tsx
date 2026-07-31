@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
   },
   alertBox: {
     width: '80%',
-    backgroundColor: '#F1EEE4', // warm beige background
+    backgroundColor: '#F3F4EE', // warm beige background
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#DAD5C6', // beige border
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    color: '#F1EEE4',
+    color: '#F3F4EE',
     fontSize: 15,
     fontWeight: '600',
   },

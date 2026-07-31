@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   balanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#F3F4EE',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 14,
