@@ -8,10 +8,13 @@ import {
   Modal,
   TextInput,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { useBank, Recurrence } from '@/context/bank-context';
+import { useBuckets, Recurrence } from '@/features/buckets/context/BucketsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useRouter } from 'expo-router';
+
 
 const RECURRENCE_OPTIONS: { key: Recurrence; label: string }[] = [
   { key: 'once', label: 'One-time' },
@@ -22,18 +25,19 @@ const RECURRENCE_OPTIONS: { key: Recurrence; label: string }[] = [
 
 export default function BucketsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const {
     buckets,
     addBucket,
     deleteBucket,
     addToGoal,
-  } = useBank();
+    isLoadingBuckets: isLoading,
+  } = useBuckets();
 
   // Local state
   const [activeTab, setActiveTab] = useState<'bill' | 'saving' | 'goal'>('bill');
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [detailModalId, setDetailModalId] = useState<number | null>(null);
 
   // New bucket form state
   const [newName, setNewName] = useState('');
@@ -49,7 +53,6 @@ export default function BucketsScreen() {
   };
 
   const filteredBuckets = buckets.filter(b => b.category === activeTab);
-  const selectedDetailBucket = buckets.find(b => b.id === detailModalId);
 
   // Calculate totals
   const billCountLabel = filteredBuckets.length === 1 ? '1 bill' : `${filteredBuckets.length} bills`;
@@ -72,7 +75,8 @@ export default function BucketsScreen() {
   };
 
   const handleCreateBucket = () => {
-    if (!newName.trim() || !newAmount) return;
+    if (!newName.trim()) return;
+    if ((newCategory === 'bill' || newCategory === 'goal') && !newAmount) return;
     const amt = parseFloat(newAmount) || 0;
 
     if (newCategory === 'goal') {
@@ -160,7 +164,11 @@ export default function BucketsScreen() {
         )}
 
         <View style={styles.listContainer}>
-          {filteredBuckets.length > 0 ? (
+          {isLoading ? (
+            <View style={[styles.emptyContainer, { paddingVertical: 100 }]}>
+              <ActivityIndicator size="large" color="#10201B" />
+            </View>
+          ) : filteredBuckets.length > 0 ? (
             filteredBuckets.map((bucket) => {
               const letter = bucket.name.charAt(0).toUpperCase();
               const progressPct = bucket.category === 'goal' && bucket.target
@@ -174,7 +182,7 @@ export default function BucketsScreen() {
                 <TouchableOpacity
                   key={bucket.id}
                   style={styles.bucketCard}
-                  onPress={() => setDetailModalId(bucket.id)}
+                  onPress={() => router.push({ pathname: '/bucket-detail', params: { id: bucket.id } })}
                 >
                   <View style={styles.bucketHeader}>
                     {bucket.category === 'goal' ? (
@@ -204,7 +212,7 @@ export default function BucketsScreen() {
                       )}
                     </View>
                   </View>
-                  <Text style={styles.bucketNote}>{bucket.note}</Text>
+                  <Text style={styles.bucketNote}>{bucket.description}</Text>
                   {recurrenceLabel && (
                     <View style={styles.recurrencePill}>
                       <Text style={styles.recurrencePillText}>Repeats {recurrenceLabel.toLowerCase()}</Text>
@@ -285,45 +293,18 @@ export default function BucketsScreen() {
               </>
             )}
 
-            {newCategory === 'saving' && (
+            {newCategory === 'goal' && (
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Amount to hold</Text>
+                <Text style={styles.modalLabel}>Target amount</Text>
                 <TextInput
                   style={styles.modalInput}
-                  placeholder="0"
+                  placeholder="150"
                   placeholderTextColor="#9A9A90"
                   keyboardType="numeric"
                   value={newAmount}
                   onChangeText={setNewAmount}
                 />
               </View>
-            )}
-
-            {newCategory === 'goal' && (
-              <>
-                <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>Target amount</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="150"
-                    placeholderTextColor="#9A9A90"
-                    keyboardType="numeric"
-                    value={newAmount}
-                    onChangeText={setNewAmount}
-                  />
-                </View>
-                <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>Already saved</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="0"
-                    placeholderTextColor="#9A9A90"
-                    keyboardType="numeric"
-                    value={newStarting}
-                    onChangeText={setNewStarting}
-                  />
-                </View>
-              </>
             )}
 
             {/* RECURRENCE — same question for bills, savings, and goals:
@@ -366,79 +347,6 @@ export default function BucketsScreen() {
         </View>
       </Modal>
 
-      {/* DETAIL BUCKET MODAL */}
-      <Modal
-        visible={detailModalId !== null}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setDetailModalId(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            {selectedDetailBucket && (
-              <>
-                <Text style={styles.detailTitle}>{selectedDetailBucket.name}</Text>
-                <Text style={styles.detailCategory}>
-                  Category: {selectedDetailBucket.category.toUpperCase()}
-                  {selectedDetailBucket.recurrence && selectedDetailBucket.recurrence !== 'once'
-                    ? ` · Repeats ${selectedDetailBucket.recurrence}`
-                    : ''}
-                </Text>
-
-                <View style={styles.detailContentContainer}>
-                  <Text style={styles.detailAmountLabel}>Target / Amount</Text>
-                  <Text style={styles.detailAmountValue}>
-                    {selectedDetailBucket.category === 'goal'
-                      ? `${formatMoney(selectedDetailBucket.current || 0)} / ${formatMoney(selectedDetailBucket.target || 0)}`
-                      : formatMoney(selectedDetailBucket.amount || 0)}
-                  </Text>
-
-                  <Text style={styles.detailNoteLabel}>Notes</Text>
-                  <Text style={styles.detailNoteValue}>{selectedDetailBucket.note}</Text>
-                </View>
-
-                {/* QUICK ADD TO GOAL IF GOAL TAB */}
-                {selectedDetailBucket.category === 'goal' && (
-                  <View style={styles.quickAddGoalRow}>
-                    <Text style={styles.quickAddTitle}>Quick lock money:</Text>
-                    <View style={styles.quickAddChips}>
-                      {[10, 25, 50].map((amt) => (
-                        <TouchableOpacity
-                          key={amt}
-                          style={styles.quickAddChip}
-                          onPress={() => addToGoal(selectedDetailBucket.id, amt)}
-                        >
-                          <Text style={styles.quickAddChipText}>+{amt}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* DELETE / CLOSE BUTTONS */}
-                <View style={styles.detailActions}>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => {
-                      deleteBucket(selectedDetailBucket.id);
-                      setDetailModalId(null);
-                    }}
-                  >
-                    <Text style={styles.deleteButtonText}>Delete bucket</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.closeDetailButton}
-                    onPress={() => setDetailModalId(null)}
-                  >
-                    <Text style={styles.closeDetailButtonText}>Close</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -797,107 +705,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#10201B',
   },
   modalButtonConfirmText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  detailTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#10201B',
-    marginBottom: 4,
-  },
-  detailCategory: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#7A9A3F',
-    marginBottom: 16,
-  },
-  detailContentContainer: {
-    marginBottom: 18,
-  },
-  detailAmountLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6F6F68',
-    marginBottom: 4,
-  },
-  detailAmountValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#10201B',
-    marginBottom: 14,
-  },
-  detailNoteLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6F6F68',
-    marginBottom: 4,
-  },
-  detailNoteValue: {
-    fontSize: 14,
-    color: '#10201B',
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  quickAddGoalRow: {
-    backgroundColor: '#ECEEE4',
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 18,
-  },
-  quickAddTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10201B',
-    marginBottom: 8,
-  },
-  quickAddChips: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  quickAddChip: {
-    flex: 1,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#DCDED2',
-  },
-  quickAddChipText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10201B',
-  },
-  detailActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  deleteButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: '#E1483F',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteButtonText: {
-    color: '#E1483F',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  closeDetailButton: {
-    flex: 1,
-    height: 48,
-    backgroundColor: '#10201B',
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeDetailButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,

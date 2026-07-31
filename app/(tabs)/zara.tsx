@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useBank } from '@/context/bank-context';
+import { useChat } from '@/features/chat/context/ChatContext';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,7 +22,7 @@ export default function ZaraScreen() {
     chatInput,
     setChatInput,
     sendChatMessage,
-  } = useBank();
+  } = useChat();
 
   useEffect(() => {
     setTimeout(() => {

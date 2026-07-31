@@ -14,14 +14,14 @@ import {
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/expo';
 import { Image } from 'expo-image';
-import { useBank } from '@/context/bank-context';
+import { useAccounts } from '@/features/accounts/context/AccountsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TopUpScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useUser();
-  const { topUp } = useBank();
+  const { topUp } = useAccounts();
 
   const [amount, setAmount] = useState('');
   const [fundingSource, setFundingSource] = useState<'bank' | 'card'>('bank');

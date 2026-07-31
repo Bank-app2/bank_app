@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useUser, useAuth } from '@clerk/expo';
 import { Image } from 'expo-image';
-import { useBank } from '@/context/bank-context';
+import { useSettings } from '@/features/settings/context/SettingsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
@@ -22,7 +22,7 @@ export default function SettingsScreen() {
     faceIdOn,
     toggleNotifications,
     toggleFaceId,
-  } = useBank();
+  } = useSettings();
 
   const name = user?.fullName || 'Your account';
   const email = user?.primaryEmailAddress?.emailAddress || 'you@example.com';

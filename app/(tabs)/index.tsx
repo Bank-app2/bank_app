@@ -10,7 +10,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/expo';
 import { Image } from 'expo-image';
-import { useBank } from '@/context/bank-context';
+import { useAccounts } from '@/features/accounts/context/AccountsContext';
+import { useSettings } from '@/features/settings/context/SettingsContext';
+import { useTransactions } from '@/features/transactions/context/TransactionsContext';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,14 +23,9 @@ export default function HomeScreen() {
   const { user } = useUser();
   const insets = useSafeAreaInsets();
 
-  const {
-    balance,
-    payingOut,
-    saved,
-    activity,
-    balanceHidden,
-    toggleBalanceHidden,
-  } = useBank();
+  const { balance, payingOut, saved } = useAccounts();
+  const { activity } = useTransactions();
+  const { balanceHidden, toggleBalanceHidden } = useSettings();
 
   const [txPage, setTxPage] = React.useState(0);
 
@@ -206,7 +203,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1EEE4',
+    backgroundColor: '#f3f2efff',
   },
   contentContainer: {
     paddingHorizontal: 20,

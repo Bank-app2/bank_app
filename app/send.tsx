@@ -11,13 +11,13 @@ import {
   Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useBank } from '@/context/bank-context';
+import { useAccounts } from '@/features/accounts/context/AccountsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SendScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { balance, sendMoney } = useBank();
+  const { balance, sendMoney } = useAccounts();
 
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');

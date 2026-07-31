@@ -8,14 +8,15 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useBank } from '@/context/bank-context';
+import { useAccounts } from '@/features/accounts/context/AccountsContext';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PaymentsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { paymentCards, addPaymentCard } = useBank();
+  const { paymentCards, addPaymentCard } = useAccounts();
 
   return (
     <View style={styles.container}>
