@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useBuckets } from '@/features/buckets/context/BucketsContext';
+import { useTransactions } from '@/features/transactions/context/TransactionsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BucketDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { buckets, deleteBucket, addToGoal, updateBucketDescription, transferFromBucket, getBucketTransactions } = useBuckets();
+  const { buckets, deleteBucket, fundBucket, updateBucketDescription, releaseBucketFunds, getBucketTransactions } = useBuckets();
+  const { loadTransactions } = useTransactions();
   const insets = useSafeAreaInsets();
 
   const bucketId = parseInt(id as string, 10);
@@ -17,7 +19,10 @@ export default function BucketDetailScreen() {
   const [descText, setDescText] = useState('');
   
   const [isTransferringOut, setIsTransferringOut] = useState(false);
-  const [transferAmount, setTransferAmount] = useState('');
+  const [transferOutAmount, setTransferOutAmount] = useState('');
+
+  const [isAddingFunds, setIsAddingFunds] = useState(false);
+  const [addFundsAmount, setAddFundsAmount] = useState('');
   
   const [transactions, setTransactions] = useState<any[]>([]);
 
@@ -49,18 +54,25 @@ export default function BucketDetailScreen() {
   };
 
   const handleTransferOut = async () => {
-    const amt = parseFloat(transferAmount);
+    const amt = parseFloat(transferOutAmount);
     if (!isNaN(amt) && amt > 0) {
-      await transferFromBucket(selectedDetailBucket.id, amt);
+      await releaseBucketFunds(selectedDetailBucket.id, amt);
       setIsTransferringOut(false);
-      setTransferAmount('');
+      setTransferOutAmount('');
       getBucketTransactions(selectedDetailBucket.id).then(setTransactions);
+      loadTransactions();
     }
   };
 
-  const handleAddFunds = async (amt: number) => {
-    await addToGoal(selectedDetailBucket.id, amt);
-    getBucketTransactions(selectedDetailBucket.id).then(setTransactions);
+  const handleAddFunds = async () => {
+    const amt = parseFloat(addFundsAmount);
+    if (!isNaN(amt) && amt > 0) {
+      await fundBucket(selectedDetailBucket.id, amt);
+      setIsAddingFunds(false);
+      setAddFundsAmount('');
+      getBucketTransactions(selectedDetailBucket.id).then(setTransactions);
+      loadTransactions();
+    }
   };
 
   return (
@@ -121,18 +133,26 @@ export default function BucketDetailScreen() {
       </View>
 
       <View style={styles.quickAddGoalRow}>
-        <Text style={styles.quickAddTitle}>Add Funds:</Text>
-        <View style={styles.quickAddChips}>
-          {[10, 25, 50].map((amt) => (
-            <TouchableOpacity
-              key={amt}
-              style={styles.quickAddChip}
-              onPress={() => handleAddFunds(amt)}
-            >
-              <Text style={styles.quickAddChipText}>+{amt}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.descHeader}>
+          <Text style={styles.quickAddTitle}>Add Funds / Transfer In</Text>
+          <TouchableOpacity onPress={() => setIsAddingFunds(!isAddingFunds)}>
+            <Text style={styles.editDescBtn}>{isAddingFunds ? 'Cancel' : 'Transfer'}</Text>
+          </TouchableOpacity>
         </View>
+        {isAddingFunds && (
+          <View style={styles.transferOutContainer}>
+            <TextInput
+              style={styles.transferInput}
+              value={addFundsAmount}
+              onChangeText={setAddFundsAmount}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+            />
+            <TouchableOpacity onPress={handleAddFunds} style={styles.saveDescBtn}>
+              <Text style={styles.saveDescBtnText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.quickAddGoalRow}>
@@ -146,8 +166,8 @@ export default function BucketDetailScreen() {
           <View style={styles.transferOutContainer}>
             <TextInput
               style={styles.transferInput}
-              value={transferAmount}
-              onChangeText={setTransferAmount}
+              value={transferOutAmount}
+              onChangeText={setTransferOutAmount}
               keyboardType="decimal-pad"
               placeholder="0.00"
             />
@@ -182,8 +202,9 @@ export default function BucketDetailScreen() {
       <View style={styles.detailActions}>
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => {
-            deleteBucket(selectedDetailBucket.id);
+          onPress={async () => {
+            await deleteBucket(selectedDetailBucket.id);
+            await loadTransactions();
             router.back();
           }}
         >

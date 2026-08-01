@@ -5,21 +5,22 @@ import { Platform, View } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
-function renderTabIcon(name: any, color: string, focused: boolean) {
+import { Text } from 'react-native';
+
+function renderTab(name: any, label: string, color: string, focused: boolean) {
   return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', height: 40, width: 40 }}>
-      <IconSymbol size={24} name={name} color={color} />
-      {focused && (
-        <View 
-          style={{
-            width: 4,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: '#C5F347', // Brand Lime Green active dot
-            marginTop: 6,
-          }}
-        />
-      )}
+    <View style={{ alignItems: 'center', justifyContent: 'center', height: 50, width: 60, marginTop: 8 }}>
+      <IconSymbol size={20} name={name} color={color} />
+      <Text style={{ fontSize: 11, fontWeight: '700', color: color, marginTop: 4 }}>{label}</Text>
+      <View 
+        style={{
+          width: 4,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: focused ? '#C5F347' : 'transparent', // Brand Lime Green active dot
+          marginTop: 4,
+        }}
+      />
     </View>
   );
 }
@@ -28,10 +29,10 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#10201B',
-        tabBarInactiveTintColor: '#B9BAAE',
+        tabBarActiveTintColor: '#14140F',
+        tabBarInactiveTintColor: '#7A7B70',
         headerShown: false,
-        tabBarShowLabel: false, // Hide text labels below icons
+        tabBarShowLabel: false, // We render the label inside tabBarIcon
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
@@ -47,37 +48,37 @@ export default function TabLayout() {
           bottom: 0,
           left: 0,
           right: 0,
-          height: Platform.OS === 'ios' ? 90 : 70,
+          height: Platform.OS === 'ios' ? 95 : 75,
           paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          paddingTop: 10,
+          paddingTop: 8,
         },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, focused }) => renderTabIcon('house', color, focused),
+          tabBarIcon: ({ color, focused }) => renderTab('house', 'Home', color, focused),
         }}
       />
       <Tabs.Screen
         name="zara"
         options={{
           title: 'Zara',
-          tabBarIcon: ({ color, focused }) => renderTabIcon('mic', color, focused),
+          tabBarIcon: ({ color, focused }) => renderTab('mic', 'Zara', color, focused),
         }}
       />
       <Tabs.Screen
         name="buckets"
         options={{
           title: 'Buckets',
-          tabBarIcon: ({ color, focused }) => renderTabIcon('tray', color, focused),
+          tabBarIcon: ({ color, focused }) => renderTab('tray', 'Buckets', color, focused),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, focused }) => renderTabIcon('gearshape', color, focused),
+          tabBarIcon: ({ color, focused }) => renderTab('gearshape', 'Settings', color, focused),
         }}
       />
     </Tabs>

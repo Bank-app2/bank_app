@@ -31,12 +31,13 @@ interface BucketsContextType {
     target?: number,
     starting?: number,
     recurrence?: Recurrence,
-    dueDate?: string
+    dueDate?: string,
+    description?: string
   ) => Promise<void>;
   deleteBucket: (id: number) => Promise<void>;
-  addToGoal: (goalId: number, amount: number) => Promise<void>;
+  fundBucket: (goalId: number, amount: number) => Promise<void>;
   updateBucketDescription: (id: number, description: string) => Promise<{ success: boolean; error?: string }>;
-  transferFromBucket: (id: number, amount: number) => Promise<{ success: boolean; error?: string }>;
+  releaseBucketFunds: (id: number, amount: number) => Promise<{ success: boolean; error?: string }>;
   getBucketTransactions: (id: number) => Promise<any[]>;
 }
 
@@ -67,6 +68,7 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
           name: b.name,
           category: cat,
           current: parseFloat(b.balance),
+          amount: cat !== 'goal' ? parseFloat(b.balance) : undefined,
           target: cat === 'goal' ? parseFloat(b.target) || 0 : undefined,
           description: b.description || (cat === 'goal' ? 'Locked until the goal is reached.' : ''),
           recurrence: b.recurrence || 'once',
@@ -133,7 +135,8 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
     target?: number,
     starting?: number,
     recurrence: Recurrence = 'once',
-    dueDate?: string
+    dueDate?: string,
+    description?: string
   ) => {
     if (!checkingAccountId || !savingsAccountId) return;
     const cleanName = name.trim() || 'New Bucket';
@@ -152,7 +155,7 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
         });
       } else if (category === 'goal' || category === 'saving') {
         const lockAmount = starting || amount || 0;
-        await apiCall('/api/buckets', {
+        const result = await apiCall('/api/buckets', {
           method: 'POST',
           body: JSON.stringify({
             accountId: checkingAccountId,
@@ -163,6 +166,10 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
             recurrence: recurrence
           }),
         });
+        
+        if (description && result?.bucket?.id) {
+          await updateBucketDescription(result.bucket.id, description);
+        }
       }
       await loadAccounts();
       await loadBuckets();
@@ -172,6 +179,7 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
         title: 'Failed to Create Bucket',
         message: (err as Error).message,
       });
+      throw err;
     }
   };
 
@@ -213,7 +221,7 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addToGoal = async (goalId: number, amount: number) => {
+  const fundBucket = async (goalId: number, amount: number) => {
     if (!checkingAccountId || amount <= 0) return;
     const goal = buckets.find(b => b.id === goalId);
     if (!goal) return;
@@ -247,7 +255,7 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const transferFromBucket = async (id: number, amount: number) => {
+  const releaseBucketFunds = async (id: number, amount: number) => {
     if (amount <= 0) return { success: false, error: 'Enter a valid amount.' };
     try {
       await apiCall(`/api/buckets/${id}/release`, {
@@ -280,9 +288,9 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
         loadBuckets,
         addBucket,
         deleteBucket,
-        addToGoal,
+        fundBucket,
         updateBucketDescription,
-        transferFromBucket,
+        releaseBucketFunds,
         getBucketTransactions,
       }}
     >

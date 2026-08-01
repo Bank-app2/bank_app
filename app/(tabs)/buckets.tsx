@@ -11,8 +11,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useBuckets, Recurrence } from '@/features/buckets/context/BucketsContext';
+import { useTransactions } from '@/features/transactions/context/TransactionsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ProgressCircle } from '@/components/ui/ProgressCircle';
 import { useRouter } from 'expo-router';
 
 
@@ -31,9 +33,10 @@ export default function BucketsScreen() {
     buckets,
     addBucket,
     deleteBucket,
-    addToGoal,
     isLoadingBuckets: isLoading,
   } = useBuckets();
+  
+  const { loadTransactions } = useTransactions();
 
   // Local state
   const [activeTab, setActiveTab] = useState<'bill' | 'saving' | 'goal'>('bill');
@@ -45,7 +48,10 @@ export default function BucketsScreen() {
   const [newCategory, setNewCategory] = useState<'bill' | 'saving' | 'goal'>('bill');
   const [newDueDate, setNewDueDate] = useState('');
   const [newStarting, setNewStarting] = useState('');
+  const [newDescription, setNewDescription] = useState('');
   const [newRecurrence, setNewRecurrence] = useState<Recurrence>('monthly');
+  const [wizardStep, setWizardStep] = useState(0); // 0:Category, 1:Name, 2:Details, 3:Review
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Format currency helper
   const formatMoney = (n: number) => {
@@ -71,24 +77,34 @@ export default function BucketsScreen() {
     setNewCategory('bill');
     setNewDueDate('');
     setNewStarting('');
+    setNewDescription('');
     setNewRecurrence('monthly');
+    setWizardStep(1);
   };
 
-  const handleCreateBucket = () => {
+  const handleCreateBucket = async () => {
     if (!newName.trim()) return;
     if ((newCategory === 'bill' || newCategory === 'goal') && !newAmount) return;
     const amt = parseFloat(newAmount) || 0;
 
-    if (newCategory === 'goal') {
-      const target = amt;
-      const starting = parseFloat(newStarting) || 0;
-      addBucket(newName, 'goal', 0, undefined, target, starting, newRecurrence, newDueDate.trim() || undefined);
-    } else {
-      addBucket(newName, newCategory, amt, newDueDate.trim() || undefined, undefined, amt, newRecurrence, newDueDate.trim() || undefined);
-    }
+    setIsSubmitting(true);
+    try {
+      if (newCategory === 'goal') {
+        const target = amt;
+        const starting = parseFloat(newStarting) || 0;
+        await addBucket(newName, 'goal', 0, undefined, target, starting, newRecurrence, newDueDate.trim() || undefined, newDescription.trim() || undefined);
+      } else {
+        await addBucket(newName, newCategory, amt, newDueDate.trim() || undefined, undefined, amt, newRecurrence, newDueDate.trim() || undefined, newDescription.trim() || undefined);
+      }
 
-    resetForm();
-    setAddModalOpen(false);
+      await loadTransactions();
+      resetForm();
+      setAddModalOpen(false);
+    } catch (error) {
+      // API error modal will be shown via context
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -138,7 +154,9 @@ export default function BucketsScreen() {
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => {
+              resetForm();
               setNewCategory(activeTab);
+              setWizardStep(1);
               setAddModalOpen(true);
             }}
           >
@@ -152,14 +170,20 @@ export default function BucketsScreen() {
             <Text style={styles.overallGoalTitle}>Total locked</Text>
             <Text style={styles.overallGoalValue}>{formatMoney(totalGoalCurrent)}</Text>
 
-            <View style={styles.donutContainer}>
-              <View style={styles.donutRing}>
-                <View style={styles.donutCenter}>
-                  <Text style={styles.donutText}>{goalOverallPct}%</Text>
-                  <Text style={styles.donutSubText}>completed</Text>
-                </View>
+              <View style={styles.donutContainer}>
+                <ProgressCircle
+                  progress={goalOverallPct}
+                  size={190}
+                  strokeWidth={20}
+                  color="#C5F347"
+                  backgroundColor="#ECEEE4"
+                >
+                  <View style={styles.donutCenter}>
+                    <Text style={styles.donutText}>{goalOverallPct}%</Text>
+                    <Text style={styles.donutSubText}>completed</Text>
+                  </View>
+                </ProgressCircle>
               </View>
-            </View>
           </View>
         )}
 
@@ -186,9 +210,15 @@ export default function BucketsScreen() {
                 >
                   <View style={styles.bucketHeader}>
                     {bucket.category === 'goal' ? (
-                      <View style={styles.progressCircle}>
-                        <Text style={styles.progressCircleText}>{progressPct}%</Text>
-                      </View>
+                      <ProgressCircle
+                        progress={progressPct}
+                        size={44}
+                        strokeWidth={6}
+                        color="#10201B"
+                        backgroundColor="#ECEEE4"
+                      >
+                        <Text style={styles.avatarCircleText}>{letter}</Text>
+                      </ProgressCircle>
                     ) : (
                       <View
                         style={[
@@ -241,7 +271,7 @@ export default function BucketsScreen() {
         </View>
       </ScrollView>
 
-      {/* ADD BUCKET MODAL */}
+      {/* ADD BUCKET BOTTOM SHEET WIZARD */}
       <Modal
         visible={addModalOpen}
         transparent={true}
@@ -249,100 +279,207 @@ export default function BucketsScreen() {
         onRequestClose={() => setAddModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setAddModalOpen(false)} />
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              New {newCategory === 'bill' ? 'bill' : newCategory === 'saving' ? 'saving' : 'goal'}
-            </Text>
+            {/* GRAB HANDLE */}
+            <View style={styles.grabHandle} />
 
-            {/* FIELD: NAME */}
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>Name</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Internet"
-                placeholderTextColor="#9A9A90"
-                value={newName}
-                onChangeText={setNewName}
-              />
+            {/* WIZARD HEADER */}
+            <View style={styles.wizardHeader}>
+              <TouchableOpacity
+                style={styles.wizardIconBtn}
+                onPress={() => {
+                  if (wizardStep > 1) {
+                    setWizardStep(wizardStep - 1);
+                  } else {
+                    setAddModalOpen(false);
+                  }
+                }}
+              >
+                <IconSymbol name="chevron.left" size={16} color="#10201B" />
+              </TouchableOpacity>
+              
+              <View style={styles.wizardProgress}>
+                <View style={[styles.progressSegment, wizardStep >= 1 && styles.progressSegmentActive]} />
+                <View style={[styles.progressSegment, wizardStep >= 2 && styles.progressSegmentActive]} />
+                <View style={[styles.progressSegment, wizardStep >= 3 && styles.progressSegmentActive]} />
+                <View style={[styles.progressSegment, wizardStep >= 4 && styles.progressSegmentActive]} />
+              </View>
+
+              <TouchableOpacity style={styles.wizardIconBtn} onPress={() => setAddModalOpen(false)}>
+                <IconSymbol name="xmark" size={16} color="#10201B" />
+              </TouchableOpacity>
             </View>
 
-            {/* DYNAMIC FORM FIELDS */}
-            {newCategory === 'bill' && (
+            {wizardStep === 1 && (
               <>
+                <Text style={styles.modalTitle}>Name this {newCategory}</Text>
+                <Text style={styles.modalSubtitle}>This is what you'll see on Home and in Buckets.</Text>
                 <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>Amount</Text>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder="0"
+                    placeholder={newCategory === 'saving' ? 'e.g. Groceries' : 'Name'}
                     placeholderTextColor="#9A9A90"
-                    keyboardType="numeric"
-                    value={newAmount}
-                    onChangeText={setNewAmount}
+                    value={newName}
+                    onChangeText={setNewName}
+                    autoFocus
                   />
                 </View>
-                <View style={styles.modalField}>
-                  <Text style={styles.modalLabel}>Due date</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="e.g. Aug 14"
-                    placeholderTextColor="#9A9A90"
-                    value={newDueDate}
-                    onChangeText={setNewDueDate}
-                  />
+                <View style={{ flex: 1 }} />
+
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, newName.trim() ? styles.modalButtonConfirm : styles.modalButtonDisabled]}
+                    onPress={() => setWizardStep(2)}
+                    disabled={!newName.trim()}
+                  >
+                    <Text style={newName.trim() ? styles.modalButtonConfirmText : styles.modalButtonDisabledText}>
+                      Continue
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </>
             )}
 
-            {newCategory === 'goal' && (
-              <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Target amount</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="150"
-                  placeholderTextColor="#9A9A90"
-                  keyboardType="numeric"
-                  value={newAmount}
-                  onChangeText={setNewAmount}
-                />
-              </View>
-            )}
+            {wizardStep === 2 && (
+              <>
+                <Text style={styles.modalTitle}>Amount and Details</Text>
+                <Text style={styles.modalSubtitle}>Set the {newCategory === 'goal' ? 'target amount' : 'amount'} and recurrence.</Text>
+                
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Amount</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="0.00"
+                    placeholderTextColor="#9A9A90"
+                    keyboardType="numeric"
+                    value={newAmount}
+                    onChangeText={setNewAmount}
+                    autoFocus
+                  />
+                </View>
 
-            {/* RECURRENCE — same question for bills, savings, and goals:
-                "is this monthly, quarterly, annually, or one-time?" */}
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>
-                {newCategory === 'bill' ? 'How often does this bill repeat?' : 'How often should this be funded?'}
-              </Text>
-              <View style={styles.recurrenceRow}>
-                {RECURRENCE_OPTIONS.map((opt) => (
+                {newCategory === 'bill' && (
+                  <View style={styles.modalField}>
+                    <Text style={styles.modalLabel}>Due date</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="e.g. Aug 14"
+                      placeholderTextColor="#9A9A90"
+                      value={newDueDate}
+                      onChangeText={setNewDueDate}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>
+                    {newCategory === 'bill' ? 'How often does this bill repeat?' : 'How often should this be funded?'}
+                  </Text>
+                  <View style={styles.recurrenceRow}>
+                    {RECURRENCE_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.recurrenceChip, newRecurrence === opt.key && styles.recurrenceChipActive]}
+                        onPress={() => setNewRecurrence(opt.key)}
+                      >
+                        <Text style={[styles.recurrenceChipText, newRecurrence === opt.key && styles.recurrenceChipTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }} />
+                <View style={styles.modalButtonsRow}>
                   <TouchableOpacity
-                    key={opt.key}
-                    style={[styles.recurrenceChip, newRecurrence === opt.key && styles.recurrenceChipActive]}
-                    onPress={() => setNewRecurrence(opt.key)}
+                    style={[styles.modalButton, newAmount.trim() ? styles.modalButtonConfirm : styles.modalButtonDisabled]}
+                    onPress={() => setWizardStep(3)}
+                    disabled={!newAmount.trim()}
                   >
-                    <Text style={[styles.recurrenceChipText, newRecurrence === opt.key && styles.recurrenceChipTextActive]}>
-                      {opt.label}
+                    <Text style={newAmount.trim() ? styles.modalButtonConfirmText : styles.modalButtonDisabledText}>
+                      Continue
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+                </View>
+              </>
+            )}
 
-            {/* BUTTONS BAR */}
-            <View style={styles.modalButtonsRow}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setAddModalOpen(false)}
-              >
-                <Text style={styles.modalButtonCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleCreateBucket}
-              >
-                <Text style={styles.modalButtonConfirmText}>Save</Text>
-              </TouchableOpacity>
-            </View>
+            {wizardStep === 3 && (
+              <>
+                <Text style={styles.modalTitle}>Describe this {newCategory}</Text>
+                <Text style={styles.modalSubtitle}>What is this {newCategory} for?</Text>
+                <View style={styles.modalField}>
+                  <TextInput
+                    style={[styles.modalInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                    placeholder="Optional description"
+                    placeholderTextColor="#9A9A90"
+                    multiline
+                    value={newDescription}
+                    onChangeText={setNewDescription}
+                    autoFocus
+                  />
+                </View>
+
+                <View style={{ flex: 1 }} />
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonConfirm]}
+                    onPress={() => setWizardStep(4)}
+                  >
+                    <Text style={styles.modalButtonConfirmText}>
+                      Continue
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {wizardStep === 4 && (
+              <>
+                <Text style={styles.modalTitle}>Ready to create</Text>
+                <Text style={styles.modalSubtitle}>Review your {newCategory} details.</Text>
+                
+                <View style={{ backgroundColor: '#ECEEE4', padding: 16, borderRadius: 16, marginBottom: 20 }}>
+                  <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Name</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>{newName}</Text>
+                  
+                  {newDescription.trim() ? (
+                    <>
+                      <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Description</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>{newDescription.trim()}</Text>
+                    </>
+                  ) : null}
+
+                  <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Amount</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>${newAmount}</Text>
+                  
+                  <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Recurrence</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B' }}>
+                    {RECURRENCE_OPTIONS.find(r => r.key === newRecurrence)?.label}
+                  </Text>
+
+                  {newCategory === 'bill' && newDueDate ? (
+                    <>
+                      <Text style={{ fontSize: 13, color: '#6F6F68', marginTop: 12, marginBottom: 4 }}>Due Date</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B' }}>{newDueDate}</Text>
+                    </>
+                  ) : null}
+                </View>
+
+                <View style={{ flex: 1 }} />
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.modalButtonConfirm, isSubmitting && { opacity: 0.7 }]} 
+                    onPress={handleCreateBucket}
+                    disabled={isSubmitting}
+                  >
+                    <Text style={styles.modalButtonConfirmText}>{isSubmitting ? 'Creating...' : 'Create'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -466,16 +603,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 18,
   },
-  donutRing: {
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: '#ECEEE4',
-    borderWidth: 20,
-    borderColor: '#C5F347',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   donutCenter: {
     width: 136,
     height: 136,
@@ -529,21 +656,6 @@ const styles = StyleSheet.create({
   avatarCircleText: {
     fontWeight: '800',
     fontSize: 16,
-    color: '#10201B',
-  },
-  progressCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ECEEE4',
-    borderWidth: 6,
-    borderColor: '#10201B',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressCircleText: {
-    fontSize: 10,
-    fontWeight: '800',
     color: '#10201B',
   },
   bucketInfo: {
@@ -614,19 +726,21 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(20, 20, 15, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    justifyContent: 'flex-end',
   },
   modalCard: {
     width: '100%',
+    height: '85%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 26,
-    padding: 22,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    paddingTop: 12,
+    paddingBottom: 40,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 10 },
+        shadowOffset: { width: 0, height: -10 },
         shadowOpacity: 0.1,
         shadowRadius: 20,
       },
@@ -635,11 +749,73 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  grabHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0D6',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  wizardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  wizardIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ECEEE4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wizardProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#ECEEE4',
+    borderRadius: 2,
+  },
+  progressSegmentActive: {
+    backgroundColor: '#10201B',
+  },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
     color: '#10201B',
-    marginBottom: 16,
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6F6F68',
+    marginBottom: 20,
+  },
+  wizardOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: '#ECEEE4',
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  wizardOptionActive: {
+    backgroundColor: '#10201B',
+  },
+  wizardOptionText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6F6F68',
+  },
+  wizardOptionTextActive: {
+    color: '#FFFFFF',
   },
   modalField: {
     marginBottom: 12,
@@ -652,11 +828,11 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 24,
     backgroundColor: '#ECEEE4',
-    fontSize: 14,
+    fontSize: 16,
     color: '#10201B',
   },
   recurrenceRow: {
@@ -682,24 +858,23 @@ const styles = StyleSheet.create({
     color: '#10201B',
   },
   modalButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
     marginTop: 14,
+    width: '100%',
   },
   modalButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 24,
+    width: '100%',
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalButtonCancel: {
+  modalButtonDisabled: {
     backgroundColor: '#ECEEE4',
   },
-  modalButtonCancelText: {
-    color: '#10201B',
+  modalButtonDisabledText: {
+    color: '#9A9A90',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 16,
   },
   modalButtonConfirm: {
     backgroundColor: '#10201B',
@@ -707,6 +882,6 @@ const styles = StyleSheet.create({
   modalButtonConfirmText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 16,
   },
 });

@@ -11,6 +11,7 @@ import React, { useEffect } from "react";
 import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AppProviders } from "@/context/AppProviders";
+import { GlobalErrorModal } from "@/components/ui/GlobalErrorModal";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -70,6 +71,7 @@ export default function RootLayout() {
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <InitialLayout />
           <StatusBar style="auto" />
+          <GlobalErrorModal />
         </ThemeProvider>
       </AppProviders>
     </ClerkProvider>

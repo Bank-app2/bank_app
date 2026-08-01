@@ -30,6 +30,8 @@ const MAPPING = {
   'doc.text': 'document-text-outline',
   'archivebox': 'archive-outline',
   'lock': 'lock-closed-outline',
+  'chevron.left': 'chevron-back',
+  'xmark': 'close',
 } as unknown as IconMapping;
 
 /**
