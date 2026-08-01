@@ -9,6 +9,7 @@ import {
   TextInput,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useBuckets, Recurrence } from '@/features/buckets/context/BucketsContext';
 import { useTransactions } from '@/features/transactions/context/TransactionsContext';
@@ -34,6 +35,9 @@ export default function BucketsScreen() {
     addBucket,
     deleteBucket,
     isLoadingBuckets: isLoading,
+    getBillers,
+    previewBill,
+    connectBill,
   } = useBuckets();
   
   const { loadTransactions } = useTransactions();
@@ -50,8 +54,18 @@ export default function BucketsScreen() {
   const [newStarting, setNewStarting] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newRecurrence, setNewRecurrence] = useState<Recurrence>('monthly');
-  const [wizardStep, setWizardStep] = useState(0); // 0:Category, 1:Name, 2:Details, 3:Review
+  const [wizardStep, setWizardStep] = useState(0); // 0:Category, 1:Name, 2:Details/Connect, 3:Review
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [billerNetwork, setBillerNetwork] = useState('');
+  const [billerAccountNumber, setBillerAccountNumber] = useState('');
+  const [availableNetworks, setAvailableNetworks] = useState<string[]>([]);
+  const [billPreview, setBillPreview] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (addModalOpen && newCategory === 'bill') {
+      getBillers().then(setAvailableNetworks);
+    }
+  }, [addModalOpen, newCategory, getBillers]);
 
   // Format currency helper
   const formatMoney = (n: number) => {
@@ -79,6 +93,9 @@ export default function BucketsScreen() {
     setNewStarting('');
     setNewDescription('');
     setNewRecurrence('monthly');
+    setBillerNetwork('');
+    setBillerAccountNumber('');
+    setBillPreview(null);
     setWizardStep(1);
   };
 
@@ -89,12 +106,18 @@ export default function BucketsScreen() {
 
     setIsSubmitting(true);
     try {
+      let bucketId: number | undefined;
       if (newCategory === 'goal') {
         const target = amt;
         const starting = parseFloat(newStarting) || 0;
-        await addBucket(newName, 'goal', 0, undefined, target, starting, newRecurrence, newDueDate.trim() || undefined, newDescription.trim() || undefined);
+        bucketId = await addBucket(newName, 'goal', 0, undefined, target, starting, newRecurrence, newDueDate.trim() || undefined, newDescription.trim() || undefined);
       } else {
-        await addBucket(newName, newCategory, amt, newDueDate.trim() || undefined, undefined, amt, newRecurrence, newDueDate.trim() || undefined, newDescription.trim() || undefined);
+        bucketId = await addBucket(newName, newCategory, amt, newDueDate.trim() || undefined, undefined, amt, newRecurrence, newDueDate.trim() || undefined, newDescription.trim() || undefined);
+      }
+
+      // If it's a bill, we need to connect it to the mock provider
+      if (newCategory === 'bill' && bucketId && billerNetwork && billerAccountNumber) {
+        await connectBill(bucketId, newName, billerNetwork, billerAccountNumber, newAmount, newDueDate);
       }
 
       await loadTransactions();
@@ -278,7 +301,10 @@ export default function BucketsScreen() {
         animationType="fade"
         onRequestClose={() => setAddModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <TouchableOpacity style={{ flex: 1 }} onPress={() => setAddModalOpen(false)} />
           <View style={styles.modalCard}>
             {/* GRAB HANDLE */}
@@ -313,12 +339,14 @@ export default function BucketsScreen() {
 
             {wizardStep === 1 && (
               <>
-                <Text style={styles.modalTitle}>Name this {newCategory}</Text>
+                <Text style={styles.modalTitle}>
+                  {newCategory === 'bill' ? 'Name this biller' : `Name this ${newCategory}`}
+                </Text>
                 <Text style={styles.modalSubtitle}>This is what you'll see on Home and in Buckets.</Text>
                 <View style={styles.modalField}>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder={newCategory === 'saving' ? 'e.g. Groceries' : 'Name'}
+                    placeholder={newCategory === 'saving' ? 'e.g. Groceries' : newCategory === 'bill' ? 'e.g. ComEd' : 'Name'}
                     placeholderTextColor="#9A9A90"
                     value={newName}
                     onChangeText={setNewName}
@@ -341,7 +369,7 @@ export default function BucketsScreen() {
               </>
             )}
 
-            {wizardStep === 2 && (
+            {wizardStep === 2 && newCategory !== 'bill' && (
               <>
                 <Text style={styles.modalTitle}>Amount and Details</Text>
                 <Text style={styles.modalSubtitle}>Set the {newCategory === 'goal' ? 'target amount' : 'amount'} and recurrence.</Text>
@@ -359,22 +387,9 @@ export default function BucketsScreen() {
                   />
                 </View>
 
-                {newCategory === 'bill' && (
-                  <View style={styles.modalField}>
-                    <Text style={styles.modalLabel}>Due date</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. Aug 14"
-                      placeholderTextColor="#9A9A90"
-                      value={newDueDate}
-                      onChangeText={setNewDueDate}
-                    />
-                  </View>
-                )}
-
                 <View style={styles.modalField}>
                   <Text style={styles.modalLabel}>
-                    {newCategory === 'bill' ? 'How often does this bill repeat?' : 'How often should this be funded?'}
+                    How often should this be funded?
                   </Text>
                   <View style={styles.recurrenceRow}>
                     {RECURRENCE_OPTIONS.map((opt) => (
@@ -400,6 +415,74 @@ export default function BucketsScreen() {
                   >
                     <Text style={newAmount.trim() ? styles.modalButtonConfirmText : styles.modalButtonDisabledText}>
                       Continue
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {wizardStep === 2 && newCategory === 'bill' && (
+              <>
+                <Text style={styles.modalTitle}>Connect Biller</Text>
+                <Text style={styles.modalSubtitle}>Select the provider and enter your account number.</Text>
+                
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Biller Network</Text>
+                  <View style={styles.recurrenceRow}>
+                    {availableNetworks.map((net) => (
+                      <TouchableOpacity
+                        key={net}
+                        style={[styles.recurrenceChip, billerNetwork === net && styles.recurrenceChipActive]}
+                        onPress={() => setBillerNetwork(net)}
+                      >
+                        <Text style={[styles.recurrenceChipText, billerNetwork === net && styles.recurrenceChipTextActive]}>
+                          {net}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Account Number</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. 123456789"
+                    placeholderTextColor="#9A9A90"
+                    keyboardType="numeric"
+                    value={billerAccountNumber}
+                    onChangeText={setBillerAccountNumber}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }} />
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, (billerNetwork && billerAccountNumber.trim()) ? styles.modalButtonConfirm : styles.modalButtonDisabled]}
+                    onPress={async () => {
+                      if (!billerNetwork || !billerAccountNumber.trim()) return;
+                      setIsSubmitting(true);
+                      try {
+                        const details = await previewBill(newName, billerNetwork, billerAccountNumber.trim());
+                        setBillPreview(details);
+                        setNewAmount(details.amountDue);
+                        
+                        // Parse the date to a simple format like "Oct 14"
+                        const d = new Date(details.dueDate);
+                        const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        setNewDueDate(formattedDate);
+                        
+                        setWizardStep(3);
+                      } catch (error) {
+                        // Error handled by context
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    disabled={!billerNetwork || !billerAccountNumber.trim() || isSubmitting}
+                  >
+                    <Text style={(billerNetwork && billerAccountNumber.trim()) ? styles.modalButtonConfirmText : styles.modalButtonDisabledText}>
+                      {isSubmitting ? 'Fetching...' : 'Continue'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -455,17 +538,27 @@ export default function BucketsScreen() {
                   <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Amount</Text>
                   <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>${newAmount}</Text>
                   
-                  <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Recurrence</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B' }}>
-                    {RECURRENCE_OPTIONS.find(r => r.key === newRecurrence)?.label}
-                  </Text>
-
-                  {newCategory === 'bill' && newDueDate ? (
+                  {newCategory !== 'bill' && (
                     <>
-                      <Text style={{ fontSize: 13, color: '#6F6F68', marginTop: 12, marginBottom: 4 }}>Due Date</Text>
+                      <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Recurrence</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>
+                        {RECURRENCE_OPTIONS.find(r => r.key === newRecurrence)?.label}
+                      </Text>
+                    </>
+                  )}
+
+                  {newCategory === 'bill' && (
+                    <>
+                      <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Biller Network</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>{billerNetwork}</Text>
+                      
+                      <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Account Number</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B', marginBottom: 12 }}>{billerAccountNumber}</Text>
+                      
+                      <Text style={{ fontSize: 13, color: '#6F6F68', marginBottom: 4 }}>Due Date</Text>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#10201B' }}>{newDueDate}</Text>
                     </>
-                  ) : null}
+                  )}
                 </View>
 
                 <View style={{ flex: 1 }} />
@@ -481,7 +574,7 @@ export default function BucketsScreen() {
               </>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>

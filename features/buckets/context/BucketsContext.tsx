@@ -33,12 +33,22 @@ interface BucketsContextType {
     recurrence?: Recurrence,
     dueDate?: string,
     description?: string
-  ) => Promise<void>;
+  ) => Promise<number | undefined>;
   deleteBucket: (id: number) => Promise<void>;
   fundBucket: (goalId: number, amount: number) => Promise<void>;
   updateBucketDescription: (id: number, description: string) => Promise<{ success: boolean; error?: string }>;
   releaseBucketFunds: (id: number, amount: number) => Promise<{ success: boolean; error?: string }>;
   getBucketTransactions: (id: number) => Promise<any[]>;
+  getBillers: () => Promise<string[]>;
+  previewBill: (billerName: string, billerNetwork: string, accountNumber: string) => Promise<any>;
+  connectBill: (
+    bucketId: number,
+    billerName: string,
+    billerNetwork: string,
+    accountNumber: string,
+    amountDue: string,
+    dueDate: string
+  ) => Promise<void>;
 }
 
 const BucketsContext = createContext<BucketsContextType | undefined>(undefined);
@@ -141,38 +151,35 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
     if (!checkingAccountId || !savingsAccountId) return;
     const cleanName = name.trim() || 'New Bucket';
     const recurrenceSuffix = recurrence !== 'once' ? ` (repeats ${recurrence})` : '';
+    let newBucketId: number | undefined;
 
     try {
-      if (category === 'bill') {
-        await apiCall('/api/transactions/payments/schedule', {
-          method: 'POST',
-          body: JSON.stringify({
-            checkingAccountId,
-            amount: amount.toFixed(4),
-            description: `${cleanName}${recurrenceSuffix}`,
-            dueDate,
-          }),
-        });
-      } else if (category === 'goal' || category === 'saving') {
-        const lockAmount = starting || amount || 0;
-        const result = await apiCall('/api/buckets', {
-          method: 'POST',
-          body: JSON.stringify({
-            accountId: checkingAccountId,
-            name: cleanName,
-            category: category === 'goal' ? 'goals' : 'savings',
-            initialBalance: lockAmount.toFixed(4),
-            target: target?.toFixed(4) || '0.0000',
-            recurrence: recurrence
-          }),
-        });
-        
-        if (description && result?.bucket?.id) {
-          await updateBucketDescription(result.bucket.id, description);
-        }
+      const lockAmount = starting || amount || 0;
+      let apiCategory = 'savings';
+      if (category === 'goal') apiCategory = 'goals';
+      if (category === 'bill') apiCategory = 'bills';
+
+      const result = await apiCall('/api/buckets', {
+        method: 'POST',
+        body: JSON.stringify({
+          accountId: checkingAccountId,
+          name: cleanName,
+          category: apiCategory,
+          initialBalance: lockAmount.toFixed(4),
+          target: target?.toFixed(4) || '0.0000',
+          recurrence: recurrence
+        }),
+      });
+      
+      newBucketId = result?.bucket?.id;
+
+      if (description && newBucketId) {
+        await updateBucketDescription(newBucketId, description);
       }
+      
       await loadAccounts();
       await loadBuckets();
+      return newBucketId;
     } catch (err) {
       console.error('Failed to create bucket:', err);
       setApiError({
@@ -270,15 +277,62 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getBucketTransactions = async (id: number) => {
+  const getBucketTransactions = useCallback(async (id: number) => {
     try {
       const res = await apiCall(`/api/buckets/${id}/transactions`);
       return res.transactions || [];
-    } catch (err) {
-      console.error('Failed to load transactions:', err);
+    } catch (err: any) {
+      console.error('Failed to get bucket transactions:', err);
       return [];
     }
-  };
+  }, [apiCall]);
+
+  const getBillers = useCallback(async () => {
+    try {
+      const res = await apiCall('/api/buckets/billers');
+      return res.networks || [];
+    } catch (err: any) {
+      console.error('Failed to get billers:', err);
+      return [];
+    }
+  }, [apiCall]);
+
+  const previewBill = useCallback(async (billerName: string, billerNetwork: string, accountNumber: string) => {
+    try {
+      const res = await apiCall('/api/buckets/bills/preview', {
+        method: 'POST',
+        body: JSON.stringify({ billerName, billerNetwork, accountNumber }),
+      });
+      return res.details;
+    } catch (err: any) {
+      console.error('Failed to preview bill:', err);
+      throw err;
+    }
+  }, [apiCall]);
+
+  const connectBill = useCallback(async (
+    bucketId: number,
+    billerName: string,
+    billerNetwork: string,
+    accountNumber: string,
+    amountDue: string,
+    dueDate: string
+  ) => {
+    try {
+      await apiCall(`/api/buckets/${bucketId}/bills`, {
+        method: 'POST',
+        body: JSON.stringify({ billerName, billerNetwork, accountNumber, amountDue, dueDate }),
+      });
+      await loadBuckets();
+    } catch (err: any) {
+      console.error('Failed to connect bill:', err);
+      setApiError({
+        title: 'Failed to Connect Bill',
+        message: err.message || 'An unknown error occurred.',
+      });
+      throw err;
+    }
+  }, [apiCall, loadBuckets, setApiError]);
 
   return (
     <BucketsContext.Provider
@@ -292,6 +346,9 @@ export function BucketsProvider({ children }: { children: ReactNode }) {
         updateBucketDescription,
         releaseBucketFunds,
         getBucketTransactions,
+        getBillers,
+        previewBill,
+        connectBill,
       }}
     >
       {children}

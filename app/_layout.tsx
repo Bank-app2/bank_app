@@ -12,6 +12,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AppProviders } from "@/context/AppProviders";
 import { GlobalErrorModal } from "@/components/ui/GlobalErrorModal";
+import { AuthLock } from "@/components/ui/AuthLock";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -69,7 +70,9 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <AppProviders>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <InitialLayout />
+          <AuthLock>
+            <InitialLayout />
+          </AuthLock>
           <StatusBar style="auto" />
           <GlobalErrorModal />
         </ThemeProvider>
@@ -77,4 +80,3 @@ export default function RootLayout() {
     </ClerkProvider>
   );
 }
-

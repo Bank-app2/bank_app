@@ -39,6 +39,12 @@
           }
         }
       ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow My Bank App to use Face ID to securely log you in."
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {
