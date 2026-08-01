@@ -12,11 +12,17 @@ export function useApi() {
 
   const apiCall = useCallback(async (path: string, options: RequestInit = {}) => {
     const token = await getTokenRef.current();
-    const headers = {
-      'Content-Type': 'application/json',
+    
+    const isFormData = options.body instanceof FormData;
+    const headers: Record<string, string> = {
       'Authorization': `Bearer ${token}`,
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
+    
+    if (!isFormData && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}${path}`, {
       ...options,
       headers,

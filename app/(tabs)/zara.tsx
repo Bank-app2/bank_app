@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useChat } from '@/features/chat/context/ChatContext';
+import { useZara } from '@/features/zara/context/ZaraContext';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,23 +17,46 @@ export default function ZaraScreen() {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
 
+  const [chatInput, setChatInput] = React.useState('');
+  
   const {
-    chat,
-    chatInput,
-    setChatInput,
-    sendChatMessage,
-  } = useChat();
+    messages,
+    isLoading,
+    isRecording,
+    sendMessage,
+    startRecording,
+    stopRecordingAndSend,
+    loadSessions,
+    sessions,
+    loadMessages,
+  } = useZara();
+
+  useEffect(() => {
+    loadSessions().then(() => {
+      // For simplicity, if there's no active session, the backend creates one on first message.
+      // If you wanted to load the last session:
+      // if (sessions.length > 0) loadMessages(sessions[0].id);
+    });
+  }, []);
 
   useEffect(() => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, [chat]);
+  }, [messages]);
 
   const handleSend = () => {
     if (!chatInput.trim()) return;
-    sendChatMessage(chatInput);
+    sendMessage(chatInput);
     setChatInput('');
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecordingAndSend();
+    } else {
+      startRecording();
+    }
   };
 
   return (
@@ -52,8 +75,8 @@ export default function ZaraScreen() {
         contentContainerStyle={styles.chatContent}
         showsVerticalScrollIndicator={false}
       >
-        {chat.map((msg) => {
-          const isUser = msg.from === 'user';
+        {messages.map((msg) => {
+          const isUser = msg.role === 'user';
           return (
             <View
               key={msg.id}
@@ -69,12 +92,19 @@ export default function ZaraScreen() {
                 ]}
               >
                 <Text style={[styles.bubbleText, isUser ? styles.userText : styles.zaraText]}>
-                  {msg.text}
+                  {msg.content}
                 </Text>
               </View>
             </View>
           );
         })}
+        {isLoading && (
+          <View style={[styles.bubbleWrapper, styles.zaraWrapper]}>
+            <View style={[styles.bubble, styles.zaraBubble]}>
+              <Text style={[styles.bubbleText, styles.zaraText]}>...</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* INPUT CONTAINER
@@ -92,8 +122,12 @@ export default function ZaraScreen() {
           },
         ]}
       >
-        <TouchableOpacity style={styles.micButton} activeOpacity={0.8}>
-          <IconSymbol name="message.fill" size={16} color="#10201B" />
+        <TouchableOpacity 
+          style={[styles.micButton, isRecording && { backgroundColor: '#FF4B4B' }]} 
+          activeOpacity={0.8}
+          onPress={toggleRecording}
+        >
+          <IconSymbol name="mic.fill" size={16} color={isRecording ? "#FFFFFF" : "#10201B"} />
         </TouchableOpacity>
 
         <TextInput
